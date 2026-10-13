@@ -22,6 +22,12 @@ def create_app(test_config=None):
     db.init_app(app)
     app.register_blueprint(auth.bp)
 
+    from .routes import inventory
+    app.register_blueprint(inventory.bp)
+
+    from .services.money import format_rupees
+    app.jinja_env.filters["rupees"] = format_rupees
+
     @app.route("/")
     def index():
         return redirect(url_for("billing"))
@@ -31,11 +37,6 @@ def create_app(test_config=None):
     @auth.login_required
     def billing():
         return auth.placeholder("Billing")
-
-    @app.route("/inventory")
-    @auth.login_required
-    def inventory():
-        return auth.placeholder("Inventory")
 
     @app.route("/bills")
     @auth.login_required

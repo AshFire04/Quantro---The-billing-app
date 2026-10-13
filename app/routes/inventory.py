@@ -1,0 +1,137 @@
+from flask import (Blueprint, abort, flash, g, redirect, render_template,
+                   request, url_for)
+
+from ..auth import login_required
+from ..db import get_db
+from ..services.money import paise_to_input, rupees_to_paise
+
+bp = Blueprint("inventory", __name__, url_prefix="/inventory")
+
+
+def status_of(product):
+    """In stock / Low / Out, worked out from the stock and the low-stock level."""
+    if product["stock"] <= 0:
+        return "Out"
+    if product["stock"] <= product["low_stock_level"]:
+        return "Low"
+    return "In stock"
+
+
+def get_product(product_id):
+    """Fetch a product, but only if it belongs to the signed-in shop."""
+    product = get_db().execute(
+        "SELECT * FROM products WHERE id = ? AND shop_id = ? AND active = 1",
+        (product_id, g.shop["id"])).fetchone()
+    if product is None:
+        abort(404)
+    return product
+
+
+@bp.route("/")
+@login_required
+def index():
+    q = request.args.get("q", "").strip()
+    status = request.args.get("status", "all")
+    sql = "SELECT * FROM products WHERE shop_id = ? AND active = 1"
+    params = [g.shop["id"]]
+    if q:
+        sql += " AND (name LIKE ? OR code LIKE ?)"
+        params += [f"%{q}%", f"%{q}%"]
+    if status == "out":
+        sql += " AND stock <= 0"
+    elif status == "low":
+        sql += " AND stock > 0 AND stock <= low_stock_level"
+    sql += " ORDER BY name COLLATE NOCASE"
+    products = [dict(p, status=status_of(p))
+                for p in get_db().execute(sql, params).fetchall()]
+    has_any = get_db().execute(
+        "SELECT 1 FROM products WHERE shop_id = ? AND active = 1",
+        (g.shop["id"],)).fetchone() is not None
+    return render_template("inventory.html", products=products, q=q,
+                           status=status, has_any=has_any)
+
+
+def read_form(product_id=None):
+    """Validate the product form. Returns (values, error)."""
+    f = request.form
+    values = {
+        "code": f.get("code", "").strip() or None,
+        "name": f.get("name", "").strip(),
+        "category": f.get("category", "").strip(),
+    }
+    try:
+        values["price"] = rupees_to_paise(f.get("price", ""))
+        values["stock"] = int(f.get("stock", ""))
+        values["low_stock_level"] = int(f.get("low_stock_level", ""))
+    except ValueError as e:
+        if "price" in str(e).lower():
+            return values, str(e)
+        return values, "Stock and low-stock level must be whole numbers"
+    if not values["name"]:
+        return values, "Please give the product a name"
+    if values["stock"] < 0 or values["low_stock_level"] < 0:
+        return values, "Stock and low-stock level can't be negative"
+    if values["code"]:
+        clash = get_db().execute(
+            "SELECT id FROM products WHERE shop_id = ? AND code = ? AND active = 1 "
+            "AND id != ?", (g.shop["id"], values["code"], product_id or 0)).fetchone()
+        if clash:
+            return values, f"Another product already uses the code {values['code']}"
+    return values, None
+
+
+@bp.route("/new", methods=("GET", "POST"))
+@login_required
+def new():
+    values = {"low_stock_level": 5, "stock": 0}
+    if request.method == "POST":
+        values, error = read_form()
+        if error:
+            flash(error)
+        else:
+            db = get_db()
+            with db:
+                db.execute(
+                    "INSERT INTO products (shop_id, code, name, category, price, "
+                    "stock, low_stock_level) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (g.shop["id"], values["code"], values["name"], values["category"],
+                     values["price"], values["stock"], values["low_stock_level"]))
+            return redirect(url_for("inventory.index"))
+        values = request.form
+    return render_template("product_form.html", product=values, editing=False)
+
+
+@bp.route("/<int:product_id>/edit", methods=("GET", "POST"))
+@login_required
+def edit(product_id):
+    product = get_product(product_id)
+    if request.method == "POST":
+        values, error = read_form(product_id)
+        if error:
+            flash(error)
+            return render_template("product_form.html", product=request.form,
+                                   editing=True, product_id=product_id)
+        db = get_db()
+        with db:
+            db.execute(
+                "UPDATE products SET code = ?, name = ?, category = ?, price = ?, "
+                "stock = ?, low_stock_level = ? WHERE id = ? AND shop_id = ?",
+                (values["code"], values["name"], values["category"], values["price"],
+                 values["stock"], values["low_stock_level"], product_id, g.shop["id"]))
+        return redirect(url_for("inventory.index"))
+    product = dict(product, price=paise_to_input(product["price"]))
+    return render_template("product_form.html", product=product, editing=True,
+                           product_id=product_id)
+
+
+@bp.route("/<int:product_id>/remove", methods=("POST",))
+@login_required
+def remove(product_id):
+    get_product(product_id)
+    db = get_db()
+    with db:
+        # Hide, don't delete: old bills still need to show what was sold.
+        # The code is cleared so a new product can reuse it (bill lines keep their own copy).
+        db.execute("UPDATE products SET active = 0, code = NULL WHERE id = ? AND shop_id = ?",
+                   (product_id, g.shop["id"]))
+    return redirect(url_for("inventory.index"))

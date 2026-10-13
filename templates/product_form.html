@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit product' if editing else 'Add product' }}{% endblock %}
+{% block main_class %}page narrow{% endblock %}
+{% block content %}
+<h1>{{ 'Edit product' if editing else 'Add product' }}</h1>
+<form method="post" class="card form">
+  <label>Item code (optional)
+    <input name="code" value="{{ product.code or '' }}" placeholder="e.g. KA36">
+  </label>
+  <label>Name
+    <input name="name" value="{{ product.name or '' }}" required placeholder="e.g. Tray 9.5 x 9.5 x 1.5">
+  </label>
+  <label>Category
+    <input name="category" value="{{ product.category or '' }}" placeholder="e.g. Trays">
+  </label>
+  <label>Price (₹)
+    <input name="price" inputmode="decimal" value="{{ product.price or '' }}" required>
+  </label>
+  <label>Stock
+    <input name="stock" type="number" min="0" step="1" value="{{ product.stock if product.stock is not none else 0 }}" required>
+  </label>
+  <label>Low-stock level (shows "Low" at or below this)
+    <input name="low_stock_level" type="number" min="0" step="1" value="{{ product.low_stock_level if product.low_stock_level is not none else 5 }}" required>
+  </label>
+  <button class="btn primary" type="submit">Save product</button>
+  <a class="btn" href="{{ url_for('inventory.index') }}">Cancel</a>
+</form>
+{% endblock %}

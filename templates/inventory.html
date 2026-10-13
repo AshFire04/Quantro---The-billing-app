@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Inventory{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Inventory</h1>
+  <a class="btn primary" href="{{ url_for('inventory.new') }}">Add product</a>
+</div>
+
+{% if not has_any %}
+  <div class="card empty">
+    <p>No products yet.</p>
+    <a class="btn primary" href="{{ url_for('inventory.new') }}">Add product</a>
+  </div>
+{% else %}
+  <form method="get" class="toolbar">
+    <input name="q" value="{{ q }}" placeholder="Search by name or code" aria-label="Search">
+    <div class="filters">
+      {% for key, label in [('all', 'All'), ('low', 'Low'), ('out', 'Out')] %}
+        <button name="status" value="{{ key }}" class="chip {{ 'active' if status == key }}">{{ label }}</button>
+      {% endfor %}
+    </div>
+  </form>
+
+  {% if products %}
+  <div class="card table-wrap">
+    <table>
+      <thead>
+        <tr><th>Code</th><th>Name</th><th>Category</th><th class="num">Stock</th><th class="num">Price</th><th>Status</th><th></th></tr>
+      </thead>
+      <tbody>
+      {% for p in products %}
+        <tr>
+          <td class="mono">{{ p.code or '' }}</td>
+          <td>{{ p.name }}</td>
+          <td>{{ p.category }}</td>
+          <td class="num mono">{{ p.stock }}</td>
+          <td class="num mono">{{ p.price | rupees }}</td>
+          <td><span class="badge {{ p.status | lower | replace(' ', '-') }}">{{ p.status }}</span></td>
+          <td class="actions">
+            <a class="btn" href="{{ url_for('inventory.edit', product_id=p.id) }}">Edit</a>
+            <form method="post" action="{{ url_for('inventory.remove', product_id=p.id) }}"
+                  onsubmit="return confirm('Remove {{ p.name | replace("'", '') }}? Old bills will still show it.')">
+              <button class="btn danger" type="submit">Remove</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p class="muted">No products match.</p>
+  {% endif %}
+{% endif %}
+{% endblock %}

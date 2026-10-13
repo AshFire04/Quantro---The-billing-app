@@ -19,7 +19,7 @@ Build mode: learn
   Learner check: Open http://localhost:5000, create your shop, sign out, sign in again, and try a wrong password.
   Commit: `Add shop creation, sign in and app shell`
 
-- [ ] **2. You can manage your products in Inventory**
+- [x] **2. You can manage your products in Inventory**
   Becomes usable: Add, edit, remove, search and filter products, with In stock, Low and Out status.
   Why now: Stock must exist before a bill can lower it, and it is the first half of the kernel.
   PRD ref: `prd.md > Features and Behavior > Products and stock (Inventory)`, `prd.md > States and Boundaries` (First use)
