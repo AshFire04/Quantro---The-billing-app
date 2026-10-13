@@ -1,4 +1,4 @@
----
+﻿---
 doc: checklist
 status: approved
 ---
@@ -29,7 +29,7 @@ Build mode: learn
   Learner check: Add a few home-furnishing products (one with a code like KA36, one without, one at or under its low level) and check the statuses and filters.
   Commit: `Add Inventory screen`
 
-- [ ] **3. You can make a bill and the stock drops (the kernel)**
+- [x] **3. You can make a bill and the stock drops (the kernel)**
   Becomes usable: On Billing, add items by code, name or card, change quantity (plus stops at stock), see the total and "Stock after saving", press Save, and see Inventory show the lower stock.
   Why now: This is the Unique Kernel, so it goes right after products exist. The server-side money and stock rules are tested here before anything is layered on.
   PRD ref: `prd.md > The Core Journey` (steps 2-8, 10), `prd.md > Features and Behavior > Making a bill (Billing)`
@@ -101,7 +101,7 @@ Build mode: learn
 
 ## Hands-on Checkpoints
 
-- [ ] Early usable behavior explored — after slice 3 (the kernel: make a bill and see stock drop)
+- [x] Early usable behavior explored — after slice 3 (the kernel: make a bill and see stock drop)
 - [ ] Final kick-the-tires exploration and feedback completed
 
 ## Final Review
@@ -123,4 +123,6 @@ Activity mode: [not started]
 ## Revisions
 
 - Open issues settled by the learner — tax line dropped (prices include GST); shipping & handling kept as an optional amount because it varies by location and mode of transport; discount order confirmed as item discount first, then whole-bill discount.
+- Slice 3 additions requested by the learner: customer name required and an optional phone number; an "Order came through" dropdown (Store (walk-in), Stall, Website, Other typed); a payment mode dropdown (UPI, Cash, Net-banking, Other typed) with a Split button for several payments (mode and amount each) that must add up to the bill total, stored in a new payments table.
+- Slice 3: the "Stock after saving this bill" preview box was removed at the learner's request; Inventory shows the new stock after saving.
 

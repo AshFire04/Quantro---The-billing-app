@@ -22,22 +22,19 @@ def create_app(test_config=None):
     db.init_app(app)
     app.register_blueprint(auth.bp)
 
-    from .routes import inventory
+    from .routes import inventory, billing, bills as bills_routes
     app.register_blueprint(inventory.bp)
+    app.register_blueprint(billing.bp)
+    app.register_blueprint(bills_routes.bp)
 
     from .services.money import format_rupees
     app.jinja_env.filters["rupees"] = format_rupees
 
     @app.route("/")
     def index():
-        return redirect(url_for("billing"))
+        return redirect(url_for("billing.index"))
 
     # Placeholder screens; each is replaced by its own slice later.
-    @app.route("/billing")
-    @auth.login_required
-    def billing():
-        return auth.placeholder("Billing")
-
     @app.route("/bills")
     @auth.login_required
     def bills():

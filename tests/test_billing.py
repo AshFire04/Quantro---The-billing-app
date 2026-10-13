@@ -1,0 +1,171 @@
+﻿import pytest
+
+from app.db import get_db
+from app.services.billing import BillError, price_bill, save_bill
+from tests.test_auth import create
+from tests.test_inventory import add
+
+
+CASH = [{"mode": "Cash"}]         # one payment with no amount = the whole bill
+
+
+def save(db, items, customer_name, customer_phone="", order_source="Store (walk-in)",
+         payments=CASH, **more):
+    """save_bill with sensible defaults, so each test only spells out what it is about."""
+    return save_bill(db, 1, items, customer_name, customer_phone=customer_phone,
+                     order_source=order_source, payments=payments, **more)
+
+
+def stock_of(db, name):
+    return db.execute("SELECT stock FROM products WHERE name = ?", (name,)).fetchone()["stock"]
+
+
+@pytest.fixture
+def shop(app, client):
+    """A signed-in shop with two products. Yields an open database inside the app context."""
+    create(client)
+    add(client, code="KA36", name="Tray", price="450", stock="10")
+    add(client, name="Cushion", price="299.50", stock="3")
+    with app.app_context():
+        yield get_db()
+
+
+def test_price_is_quantity_times_rate_in_paise(shop):
+    lines, total = price_bill(shop, 1, [{"product_id": 1, "quantity": 2},
+                                        {"product_id": 2, "quantity": 1}])
+    assert total == 2 * 45000 + 29950
+    assert lines[0]["line_amount"] == 90000
+
+
+def test_same_product_twice_becomes_one_line(shop):
+    lines, total = price_bill(shop, 1, [{"product_id": 1, "quantity": 1},
+                                        {"product_id": 1, "quantity": 2}])
+    assert len(lines) == 1 and lines[0]["quantity"] == 3
+
+
+def test_save_lowers_stock_and_numbers_bills(shop):
+    first = save(shop, [{"product_id": 1, "quantity": 4}], "Asha")
+    second = save(shop, [{"product_id": 1, "quantity": 1}], "Ravi")
+    assert stock_of(shop, "Tray") == 5
+    numbers = [r["invoice_number"] for r in shop.execute(
+        "SELECT invoice_number FROM bills ORDER BY id")]
+    assert numbers == [1, 2] and first != second
+    line = shop.execute("SELECT * FROM bill_lines WHERE bill_id = ?", (first,)).fetchone()
+    assert (line["code"], line["name"], line["rate"]) == ("KA36", "Tray", 45000)
+
+
+def test_overselling_is_refused_and_changes_nothing(shop):
+    with pytest.raises(BillError, match="Only 3 left of Cushion"):
+        save(shop, [{"product_id": 1, "quantity": 2}, {"product_id": 2, "quantity": 4}], "Asha")
+    assert stock_of(shop, "Tray") == 10 and stock_of(shop, "Cushion") == 3
+    assert shop.execute("SELECT COUNT(*) FROM bills").fetchone()[0] == 0
+
+
+def test_stale_page_cannot_sell_the_last_item(shop):
+    # The server checks the real stock inside the save, even if the page was out of date.
+    save(shop, [{"product_id": 2, "quantity": 3}], "Asha")
+    with pytest.raises(BillError):
+        save(shop, [{"product_id": 2, "quantity": 1}], "Asha")
+    assert stock_of(shop, "Cushion") == 0
+
+
+def test_failure_halfway_undoes_everything(shop):
+    # Make the second stock update fail after the first has already happened.
+    shop.execute("CREATE TRIGGER boom BEFORE UPDATE ON products WHEN NEW.id = 2 "
+                 "BEGIN SELECT RAISE(ABORT, 'boom'); END")
+    with pytest.raises(BillError, match="nothing was changed"):
+        save(shop, [{"product_id": 1, "quantity": 2}, {"product_id": 2, "quantity": 1}], "Asha")
+    assert stock_of(shop, "Tray") == 10 and stock_of(shop, "Cushion") == 3
+    assert shop.execute("SELECT COUNT(*) FROM bills").fetchone()[0] == 0
+    assert shop.execute("SELECT next_invoice_number FROM shops").fetchone()[0] == 1
+
+
+@pytest.mark.parametrize("items", [[], [{"product_id": 1, "quantity": 0}],
+                                   [{"product_id": 999, "quantity": 1}],
+                                   [{"product_id": "x", "quantity": 1}]])
+def test_bad_bills_are_refused(shop, items):
+    with pytest.raises(BillError):
+        save(shop, items, "Asha")
+
+
+def test_save_through_the_website(client):
+    create(client)
+    add(client, name="Tray", price="450", stock="5")
+    assert b"Tray" in client.get("/billing").data
+    res = client.post("/billing/save", json={"items": [{"product_id": 1, "quantity": 2}],
+                                             "customer": "Asha", "phone": "98765 43210", "place_of_sale": "Karnataka",
+                                             "order_source": "Website", "payments": CASH})
+    assert res.status_code == 200
+    page = client.get(res.get_json()["url"]).data
+    assert b"Asha" in page and b"Website" in page and b"Cash" in page and b"98765 43210" in page and "₹900.00".encode() in page
+    assert b"<td class=\"num mono\">3</td>" not in page  # stock is on Inventory, not the bill
+    assert b">3<" in client.get("/inventory/").data
+    bad = client.post("/billing/save", json={"items": [{"product_id": 1, "quantity": 9}], "customer": "Asha",
+                                             "order_source": "Stall", "payments": CASH})
+    assert bad.status_code == 400 and "Only 3 left" in bad.get_json()["error"]
+
+
+def test_cannot_bill_another_shops_product(client):
+    create(client)
+    add(client, name="Tray", stock="5")
+    client.get("/logout")
+    create(client, login="other@example.com", shop="Other shop")
+    res = client.post("/billing/save", json={"items": [{"product_id": 1, "quantity": 1}], "customer": "Asha",
+                                             "order_source": "Stall", "payments": CASH})
+    assert res.status_code == 400
+    assert client.get("/bills/1").status_code == 404
+
+
+def test_customer_name_is_required_and_phone_is_optional(shop):
+    items = [{"product_id": 1, "quantity": 1}]
+    with pytest.raises(BillError, match="customer's name"):
+        save(shop, items, "   ")
+    with pytest.raises(BillError, match="phone number"):
+        save(shop, items, "Asha", customer_phone="12ab")
+    assert stock_of(shop, "Tray") == 10
+    save(shop, items, "Asha")                                # no phone: fine
+    save(shop, items, "Ravi", customer_phone="+91 98765 43210")
+    phones = [r[0] for r in shop.execute("SELECT customer_phone FROM bills ORDER BY id")]
+    assert phones == ["", "+91 98765 43210"]
+
+
+def test_order_source_and_payment_mode_are_required(shop):
+    items = [{"product_id": 1, "quantity": 1}]
+    with pytest.raises(BillError, match="order source"):
+        save(shop, items, "Asha", order_source="")
+    with pytest.raises(BillError, match="order source"):
+        save(shop, items, "Asha", order_source="Other")             # 'Other' needs typed text
+    with pytest.raises(BillError, match="payment mode"):
+        save(shop, items, "Asha", payments=[{"mode": ""}])
+    with pytest.raises(BillError, match="payment mode"):
+        save(shop, items, "Asha", payments=[{"mode": "Other", "other": " "}])
+    assert stock_of(shop, "Tray") == 10
+    save(shop, items, "Asha", order_source="Other", order_source_other="Phone call",
+         payments=[{"mode": "Other", "other": "Cheque"}])
+    bill = shop.execute("SELECT * FROM bills").fetchone()
+    assert bill["order_source"] == "Other: Phone call"
+    assert shop.execute("SELECT mode, amount FROM payments").fetchall()[0][:] == ("Other: Cheque", 45000)
+
+
+def test_single_payment_covers_the_whole_bill(shop):
+    save(shop, [{"product_id": 1, "quantity": 2}], "Asha", payments=[{"mode": "UPI"}])
+    rows = shop.execute("SELECT mode, amount FROM payments").fetchall()
+    assert [tuple(r) for r in rows] == [("UPI", 90000)]
+
+
+def test_split_payment_must_add_up_to_the_total(shop):
+    items = [{"product_id": 1, "quantity": 2}]                      # total ₹900
+    save(shop, items, "Asha", payments=[{"mode": "Cash", "amount": "500"},
+                                        {"mode": "UPI", "amount": "400"}])
+    rows = shop.execute("SELECT mode, amount FROM payments ORDER BY id").fetchall()
+    assert [tuple(r) for r in rows] == [("Cash", 50000), ("UPI", 40000)]
+    for bad in ([{"mode": "Cash", "amount": "500"}, {"mode": "UPI", "amount": "300"}],     # short
+                [{"mode": "Cash", "amount": "500"}, {"mode": "UPI", "amount": "500"}],     # over
+                [{"mode": "Cash", "amount": "900"}, {"mode": "UPI", "amount": "0"}],       # zero
+                [{"mode": "Cash", "amount": "900"}, {"mode": "UPI", "amount": ""}],        # blank
+                [{"mode": "Cash", "amount": "abc"}, {"mode": "UPI", "amount": "400"}]):
+        with pytest.raises(BillError):
+            save(shop, items, "Asha", payments=bad)
+    assert stock_of(shop, "Tray") == 8                              # only the good bill went through
+    assert shop.execute("SELECT COUNT(*) FROM bills").fetchone()[0] == 1
+

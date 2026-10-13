@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Billing{% endblock %}
+{% block main_class %}page wide{% endblock %}
+{% block content %}
+{% if not products %}
+  <div class="card empty">
+    <p>No products yet. Add some in Inventory before making a bill.</p>
+    <a class="btn primary" href="{{ url_for('inventory.new') }}">Add product</a>
+  </div>
+{% else %}
+<div class="billing">
+  <section class="items">
+    <input id="search" class="search" placeholder="Type a code (like KA36) or search by name" aria-label="Search items" autocomplete="off">
+    <div id="categories" class="filters wrap"></div>
+    <div id="cards" class="cards"></div>
+    <p id="no-match" class="muted" hidden>No products match.</p>
+  </section>
+
+  <aside class="card bill-panel">
+    <div class="page-head">
+      <h2>Bill #{{ next_number }}</h2>
+      <button type="button" id="clear" class="btn">Clear</button>
+    </div>
+    <label class="field">Customer name
+      <input id="customer" placeholder="Customer name" required>
+    </label>
+    <label class="field">Phone number (optional)
+      <input id="phone" type="tel" placeholder="e.g. 98765 43210">
+    </label>
+    <label class="field">Place of sale (state or country)
+      <input id="place" placeholder="e.g. Karnataka">
+    </label>
+    <label class="field">Order came through
+      <select id="source">
+        <option value="">Choose…</option>
+        {% for s in order_sources %}<option>{{ s }}</option>{% endfor %}
+      </select>
+    </label>
+    <input id="source-other" class="other-input" placeholder="Type the order source" hidden>
+
+    <div id="lines" class="lines"></div>
+    <p id="empty-bill" class="muted">Tap an item to add it to the bill.</p>
+
+    <div class="totals">
+      <div class="total-row"><span>Total</span><strong id="total" class="mono big">₹0</strong></div>
+    </div>
+
+    <div class="payment">
+      <div class="page-head">
+        <strong>Payment</strong>
+        <button type="button" id="split-toggle" class="btn small">Split</button>
+      </div>
+      <div id="single-payment">
+        <select id="pay-mode" aria-label="Payment mode">
+          <option value="">Choose payment mode…</option>
+          {% for m in payment_modes %}<option>{{ m }}</option>{% endfor %}
+        </select>
+        <input id="pay-other" class="other-input" placeholder="Type the payment mode" hidden>
+      </div>
+      <div id="split-payment" hidden>
+        <div id="split-rows"></div>
+        <button type="button" id="split-add" class="btn small">+ Add a payment</button>
+        <p id="split-left" class="muted"></p>
+      </div>
+    </div>
+
+    <div id="error" class="flash" hidden></div>
+    <button type="button" id="save" class="btn primary wide-btn" disabled>Save bill &amp; update stock</button>
+  </aside>
+</div>
+
+<script id="products-data" type="application/json">{{ products | tojson }}</script>
+<script id="modes-data" type="application/json">{{ payment_modes | tojson }}</script>
+<script src="{{ url_for('static', filename='js/billing.js') }}"></script>
+{% endif %}
+{% endblock %}

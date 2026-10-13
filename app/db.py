@@ -32,6 +32,40 @@ CREATE TABLE IF NOT EXISTS products (
     active INTEGER NOT NULL DEFAULT 1, -- 0 = removed (hidden, kept for old bills)
     UNIQUE (shop_id, code)
 );
+CREATE TABLE IF NOT EXISTS bills (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    shop_id INTEGER NOT NULL REFERENCES shops(id),
+    invoice_number INTEGER NOT NULL,   -- counts up by one per shop
+    created_at TEXT NOT NULL,
+    customer_name TEXT NOT NULL DEFAULT '',
+    customer_phone TEXT NOT NULL DEFAULT '',
+    place_of_sale TEXT NOT NULL DEFAULT '',
+    order_source TEXT NOT NULL DEFAULT '',  -- Store (walk-in), Stall, Website or Other: ...
+    whole_discount_pct REAL NOT NULL DEFAULT 0,
+    shipping INTEGER NOT NULL DEFAULT 0,  -- paise
+    total INTEGER NOT NULL,               -- paise
+    status TEXT NOT NULL DEFAULT 'Saved', -- Saved or Cancelled
+    replaced_by INTEGER REFERENCES bills(id),
+    replaces INTEGER REFERENCES bills(id),
+    UNIQUE (shop_id, invoice_number)
+);
+CREATE TABLE IF NOT EXISTS bill_lines (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    bill_id INTEGER NOT NULL REFERENCES bills(id),
+    product_id INTEGER NOT NULL REFERENCES products(id),
+    code TEXT,                         -- copied at the time of sale
+    name TEXT NOT NULL,                -- copied at the time of sale
+    quantity INTEGER NOT NULL,
+    rate INTEGER NOT NULL,             -- paise, copied at the time of sale
+    line_discount_pct REAL NOT NULL DEFAULT 0,
+    line_amount INTEGER NOT NULL       -- paise, after the line discount
+);
+CREATE TABLE IF NOT EXISTS payments (  -- a bill has one or more; together they equal its total
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    bill_id INTEGER NOT NULL REFERENCES bills(id),
+    mode TEXT NOT NULL,                -- UPI, Cash, Net-banking or Other: ...
+    amount INTEGER NOT NULL            -- paise
+);
 """
 
 
@@ -51,7 +85,14 @@ def close_db(e=None):
 
 
 def init_db():
-    get_db().executescript(SCHEMA)
+    db = get_db()
+    db.executescript(SCHEMA)
+    # Databases made before a column existed get it added here.
+    columns = [row["name"] for row in db.execute("PRAGMA table_info(bills)")]
+    for name in ("customer_phone", "order_source"):
+        if name not in columns:
+            db.execute(f"ALTER TABLE bills ADD COLUMN {name} TEXT NOT NULL DEFAULT ''")
+    db.commit()
 
 
 def init_app(app):

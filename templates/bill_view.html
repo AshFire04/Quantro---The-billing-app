@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Bill #{{ bill.invoice_number }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Bill #{{ bill.invoice_number }}</h1>
+  <a class="btn primary" href="{{ url_for('billing.index') }}">New bill</a>
+</div>
+<p class="flash ok">Bill saved and stock updated.</p>
+
+<div class="card">
+  <p class="muted">
+    {{ bill.created_at.replace('T', ' ') }}
+    · Customer: {{ bill.customer_name }}{% if bill.customer_phone %} ({{ bill.customer_phone }}){% endif %}
+    {% if bill.place_of_sale %}· Place of sale: {{ bill.place_of_sale }}{% endif %}
+    {% if bill.order_source %}· Order via: {{ bill.order_source }}{% endif %}
+  </p>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Code</th><th>Item</th><th class="num">Qty</th><th class="num">Rate</th><th class="num">Amount</th></tr>
+      </thead>
+      <tbody>
+      {% for l in lines %}
+        <tr>
+          <td class="mono">{{ l.code or '' }}</td>
+          <td>{{ l.name }}</td>
+          <td class="num mono">{{ l.quantity }}</td>
+          <td class="num mono">{{ l.rate | rupees }}</td>
+          <td class="num mono">{{ l.line_amount | rupees }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="total-row"><span>Total</span><strong class="mono big">{{ bill.total | rupees }}</strong></p>
+  <p class="muted">Paid by:
+    {% for p in payments %}{{ p.mode }} {{ p.amount | rupees }}{% if not loop.last %}, {% endif %}{% endfor %}
+  </p>
+</div>
+{% endblock %}
