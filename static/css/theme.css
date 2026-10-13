@@ -1,0 +1,16 @@
+/* All colours live here. Placeholder palette; change these to re-theme the app. */
+:root {
+  --color-primary: #0f6b5c;
+  --color-primary-dark: #0a4f44;
+  --color-on-primary: #ffffff;
+  --color-bg: #faf8f3;
+  --color-surface: #ffffff;
+  --color-text: #1f2a28;
+  --color-muted: #6b7773;
+  --color-border: #e1ddd2;
+  --color-warning: #c98a0b;
+  --color-danger: #b3261e;
+  --color-ok-bg: #e3f2ee;
+  --font-text: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-numbers: ui-monospace, "SF Mono", Consolas, monospace;
+}

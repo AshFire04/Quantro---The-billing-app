@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Quantro{% endblock %} · Quantro</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  {% if g.user %}
+  <header class="topbar">
+    <span class="brand">Quantro</span>
+    <nav>
+      <a href="{{ url_for('billing') }}">Billing</a>
+      <a href="{{ url_for('inventory') }}">Inventory</a>
+      <a href="{{ url_for('bills') }}">Past bills</a>
+      <a href="{{ url_for('settings') }}">Settings</a>
+    </nav>
+    <span class="who">{{ g.shop['name'] }} · <a href="{{ url_for('auth.logout') }}">Sign out</a></span>
+  </header>
+  {% endif %}
+  <main class="{% block main_class %}page{% endblock %}">
+    {% for message in get_flashed_messages() %}
+      <div class="flash">{{ message }}</div>
+    {% endfor %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

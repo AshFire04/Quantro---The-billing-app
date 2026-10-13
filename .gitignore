@@ -1,0 +1,11 @@
+/devpost/learner-profile.md
+.env
+.env.*
+!.env.example
+
+# Python / local data
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+/instance/

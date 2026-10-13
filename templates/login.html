@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Sign in{% endblock %}
+{% block main_class %}page narrow{% endblock %}
+{% block content %}
+<h1>Welcome to Quantro</h1>
+<p class="muted">Sign in to make bills and keep your stock up to date.</p>
+<form method="post" class="card form">
+  <label>Email or phone <input name="login" required autofocus></label>
+  <label>Password <input name="password" type="password" required></label>
+  <button class="btn primary" type="submit">Sign in</button>
+</form>
+<p>New here? <a href="{{ url_for('auth.create_shop') }}">Create your shop</a></p>
+{% endblock %}

@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Create your shop{% endblock %}
+{% block main_class %}page narrow{% endblock %}
+{% block content %}
+<h1>Create your shop</h1>
+<form method="post" class="card form">
+  <label>Shop name <input name="shop_name" required autofocus></label>
+  <label>Your name <input name="owner_name" required></label>
+  <label>Email or phone <input name="login" required></label>
+  <label>Password <input name="password" type="password" required minlength="6"></label>
+  <button class="btn primary" type="submit">Create shop</button>
+</form>
+<p>Already have an account? <a href="{{ url_for('auth.login') }}">Sign in</a></p>
+{% endblock %}
