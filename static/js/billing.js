@@ -288,7 +288,8 @@ $("save").onclick = async () => {
                              due_date: dueOpen ? $("due-date").value : "",
                              place_of_sale: $("place").value,
                              order_source: $("source").value, order_source_other: $("source-other").value,
-                             payments: paymentsForServer() }),
+                             payments: paymentsForServer(),
+                             replaces: prefill ? prefill.replaces : null }),
     });
     const data = await res.json();
     if (res.ok) { window.location = data.url; return; }
@@ -300,8 +301,45 @@ $("save").onclick = async () => {
   $("save").disabled = false;
 };
 
+// ---- Editing a saved bill: fill the screen from the old bill's copy ----
+
+const prefill = JSON.parse(document.getElementById("prefill-data").textContent);
+
+function applyPrefill(old) {
+  for (const item of old.items) {
+    const p = byId[item.product_id];
+    bill[item.product_id] = Math.min(item.quantity, p.stock);   // p.stock already counts the old bill's items
+    if (item.discount) discounts[item.product_id] = item.discount;
+  }
+  $("customer").value = old.customer;
+  $("phone").value = old.phone;
+  $("location").value = old.location;
+  $("place").value = old.place;
+  $("source").value = old.source;
+  $("source-other").value = old.source_other;
+  showOther($("source"), $("source-other"));
+  $("whole-discount").value = old.whole_discount;
+  $("shipping").value = old.shipping;
+  if (old.due_amount) {
+    $("due-toggle").onclick();
+    $("due-amount").value = old.due_amount;
+    $("due-date").value = old.due_date;
+  }
+  if (old.payments.length === 1) {
+    $("pay-mode").value = old.payments[0].mode;
+    $("pay-other").value = old.payments[0].other;
+    showOther($("pay-mode"), $("pay-other"));
+  } else if (old.payments.length > 1) {
+    $("split-toggle").onclick();                       // switches Split on
+    splitRows = old.payments.map(p => ({ mode: p.mode, other: p.other, amount: p.amount }));
+    renderSplit();
+  }
+}
+
+if (prefill) applyPrefill(prefill);
 renderCategories();
 renderCards();
 renderBill();
+
 
 

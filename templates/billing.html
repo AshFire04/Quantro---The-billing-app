@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 {% block title %}Billing{% endblock %}
 {% block main_class %}page wide{% endblock %}
 {% block content %}
@@ -8,6 +8,15 @@
     <a class="btn primary" href="{{ url_for('inventory.new') }}">Add product</a>
   </div>
 {% else %}
+{% if editing %}
+<div class="flash edit-banner">
+  Editing bill #{{ editing.invoice_number }}. Saving creates a new bill (#{{ next_number }}); bill
+  #{{ editing.invoice_number }} will be marked Cancelled and its items go back into stock first.
+  Remove an item or lower a quantity for a return. Payments are copied from the old bill, so check them.
+  <a href="{{ url_for('bills.view', bill_id=editing.id) }}">Leave without saving</a>
+  {% if skipped %}<br>No longer in Inventory, so not copied: {{ skipped | join(", ") }}.{% endif %}
+</div>
+{% endif %}
 <div class="billing">
   <section class="items">
     <input id="search" class="search" placeholder="Type a code (like KA36) or search by name" aria-label="Search items" autocomplete="off">
@@ -18,7 +27,7 @@
 
   <aside class="card bill-panel">
     <div class="page-head">
-      <h2>Bill #{{ next_number }}</h2>
+      <h2>Bill #{{ next_number }}{% if editing %} <small class="muted">replaces #{{ editing.invoice_number }}</small>{% endif %}</h2>
       <button type="button" id="clear" class="btn">Clear</button>
     </div>
     <label class="field">Customer Name*
@@ -92,12 +101,15 @@
     </div>
 
     <div id="error" class="flash" hidden></div>
-    <button type="button" id="save" class="btn primary wide-btn" disabled>Save bill &amp; update stock</button>
+    <button type="button" id="save" class="btn primary wide-btn" disabled>{% if editing %}Save changes (replaces #{{ editing.invoice_number }}){% else %}Save bill &amp; update stock{% endif %}</button>
   </aside>
 </div>
 
 <script id="products-data" type="application/json">{{ products | tojson }}</script>
+<script id="prefill-data" type="application/json">{{ prefill | tojson }}</script>
 <script id="modes-data" type="application/json">{{ payment_modes | tojson }}</script>
 <script src="{{ url_for('static', filename='js/billing.js') }}"></script>
 {% endif %}
 {% endblock %}
+
+

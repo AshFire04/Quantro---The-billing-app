@@ -159,10 +159,14 @@ def price_bill(db, shop_id, items, whole_discount_pct=Decimal(0), shipping=0):
 def save_bill(db, shop_id, items, customer_name, customer_phone="", place_of_sale="",
               order_source="", order_source_other="", payments=None,
               customer_location="", due_amount="", due_date="", whole_discount="",
-              shipping=""):
+              shipping="", replaces=None):
     """Save a bill and lower the stock, all in one go. Returns the new bill's id.
 
-    If anything fails, nothing is changed: not the bill, not the invoice number, not the stock.
+    With `replaces` (the id of a saved bill), this is an edit: the old bill's items go back
+    into stock, the new bill takes its items out, and the old bill is marked Cancelled with a
+    link to the new one. It is still one transaction.
+
+    If anything fails, nothing is changed: not the bills, not the invoice number, not the stock.
     """
     customer_name = customer_name.strip()
     customer_phone = customer_phone.strip()
@@ -173,11 +177,14 @@ def save_bill(db, shop_id, items, customer_name, customer_phone="", place_of_sal
     source = clean_choice(order_source, order_source_other, ORDER_SOURCES, "order source")
     whole_pct = parse_percent(whole_discount, "The whole-bill discount")
     shipping_paise = parse_shipping(shipping)
-    lines, total = price_bill(db, shop_id, items, whole_pct, shipping_paise)
-    due, due_on = check_due(due_amount, due_date, total)
-    payments = check_payments(payments, total - due)
     try:
         with db:  # one transaction: commits at the end, or undoes everything on an error
+            if replaces is not None:
+                put_old_items_back(db, shop_id, replaces)
+            # Priced inside the transaction, so an edit sees the stock the old bill gave back.
+            lines, total = price_bill(db, shop_id, items, whole_pct, shipping_paise)
+            due, due_on = check_due(due_amount, due_date, total)
+            payments = check_payments(payments, total - due)
             shop = db.execute("SELECT next_invoice_number FROM shops WHERE id = ?",
                               (shop_id,)).fetchone()
             number = shop["next_invoice_number"]
@@ -186,12 +193,15 @@ def save_bill(db, shop_id, items, customer_name, customer_phone="", place_of_sal
             bill_id = db.execute(
                 "INSERT INTO bills (shop_id, invoice_number, created_at, customer_name, "
                 "customer_phone, customer_location, place_of_sale, order_source, total, "
-                "due_amount, due_date, whole_discount_pct, shipping) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "due_amount, due_date, whole_discount_pct, shipping, replaces) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (shop_id, number, datetime.now().isoformat(timespec="seconds"),
                  customer_name, customer_phone, customer_location.strip(),
                  place_of_sale.strip(), source, total, due, due_on, float(whole_pct),
-                 shipping_paise)).lastrowid
+                 shipping_paise, replaces)).lastrowid
+            if replaces is not None:
+                db.execute("UPDATE bills SET status = 'Cancelled', replaced_by = ? "
+                           "WHERE id = ?", (bill_id, replaces))
             for mode, amount in payments:
                 db.execute("INSERT INTO payments (bill_id, mode, amount) VALUES (?, ?, ?)",
                            (bill_id, mode, amount))
@@ -216,6 +226,32 @@ def save_bill(db, shop_id, items, customer_name, customer_phone="", place_of_sal
     return bill_id
 
 
+def put_old_items_back(db, shop_id, bill_id):
+    """Give a saved bill's items back to stock, ready for it to be replaced.
+
+    Must be called inside the transaction that then saves the replacement bill.
+    """
+    old = db.execute("SELECT * FROM bills WHERE id = ? AND shop_id = ?",
+                     (bill_id, shop_id)).fetchone()
+    if old is None:
+        raise BillError("That bill wasn't found")
+    if old["status"] != "Saved" or old["replaced_by"] is not None:
+        raise BillError("This bill has already been cancelled or replaced")
+    for line in db.execute("SELECT product_id, quantity FROM bill_lines WHERE bill_id = ?",
+                           (bill_id,)).fetchall():
+        # By product id, even if the product has since been removed from Inventory.
+        db.execute("UPDATE products SET stock = stock + ? WHERE id = ? AND shop_id = ?",
+                   (line["quantity"], line["product_id"], shop_id))
+
+def cancel_bill(db, shop_id, bill_id):
+    """Cancel a saved bill without replacing it (for example, everything was returned).
+
+    The items go back into stock and the bill stays in Past bills, marked Cancelled.
+    """
+    with db:
+        put_old_items_back(db, shop_id, bill_id)
+        db.execute("UPDATE bills SET status = 'Cancelled' WHERE id = ?", (bill_id,))
+
 def receive_due(db, shop_id, bill_id, mode, other=""):
     """The customer has paid what was due. Records it as a payment and clears the due amount."""
     mode = clean_choice(mode, other, PAYMENT_MODES, "payment mode")
@@ -232,5 +268,7 @@ def receive_due(db, shop_id, bill_id, mode, other=""):
                    (bill_id, mode, bill["due_amount"],
                     datetime.now().isoformat(timespec="seconds")))
         db.execute("UPDATE bills SET due_amount = 0, due_date = '' WHERE id = ?", (bill_id,))
+
+
 
 

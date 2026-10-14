@@ -5,10 +5,25 @@
   <h1>Bill #{{ bill.invoice_number }}
     {% if bill.status != 'Saved' %}<span class="badge out">{{ bill.status }}</span>{% endif %}</h1>
   <div class="actions">
+    {% if bill.status == 'Saved' and not bill.replaced_by %}
+    <a class="btn" href="{{ url_for('billing.edit', bill_id=bill.id) }}">Edit</a>
+    <form method="post" action="{{ url_for('bills.cancel', bill_id=bill.id) }}"
+          onsubmit="return confirm('Cancel bill #{{ bill.invoice_number }}? Its items go back into stock and the bill stays in Past bills as Cancelled.')">
+      <button class="btn danger" type="submit">Cancel bill</button>
+    </form>
+    {% endif %}
     <a class="btn" href="{{ url_for('bills.index') }}">Past bills</a>
     <a class="btn primary" href="{{ url_for('billing.index') }}">New bill</a>
   </div>
 </div>
+{% if bill.status == 'Cancelled' %}
+<p class="flash">This bill is cancelled{% if replaced_by %} and was replaced by
+  <a href="{{ url_for('bills.view', bill_id=replaced_by.id) }}">bill #{{ replaced_by.invoice_number }}</a>{% endif %}.
+  Its items went back into stock.</p>
+{% endif %}
+{% if replaces %}
+<p class="muted">This bill replaces <a href="{{ url_for('bills.view', bill_id=replaces.id) }}">bill #{{ replaces.invoice_number }}</a>.</p>
+{% endif %}
 {% if just_saved %}<p class="flash ok">Bill saved and stock updated.</p>{% endif %}
 
 <div class="card">
@@ -77,5 +92,7 @@
   {% endif %}
 </div>
 {% endblock %}
+
+
 
 

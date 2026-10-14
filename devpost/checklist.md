@@ -59,7 +59,7 @@ Build mode: learn
   Learner check: Make a bill with a 10% item discount and a 5% whole-bill discount, and check the total against a hand calculation.
   Commit: `Add discounts and shipping to bills`
 
-- [ ] **6. You can edit a saved bill (replace, cancel, return)**
+- [x] **6. You can edit a saved bill (replace, cancel, return)**
   Becomes usable: Edit opens a copy; saving makes a new numbered bill, marks the old one Cancelled with a link, and restores then removes stock correctly.
   Why now: It is the riskiest stock logic after the kernel, so test it before printing and polish.
   PRD ref: `prd.md > Features and Behavior > Saving, editing and cancelling a bill`
@@ -127,4 +127,5 @@ Activity mode: [not started]
 - Slice 3: the "Stock after saving this bill" preview box was removed at the learner's request; Inventory shows the new stock after saving.
 - Slice 4 additions requested by the learner: optional customer location on a bill; part payments with an amount due and a due date (the simple version of "pending payments", moved in from Deferred); a "Mark payment received" button on the bill page that records the received amount as a payment with the mode chosen; Past bills filters for order source, payment mode, has payment due and a date range (a status filter was added and then removed at the learner's request).
 - Slice 5: discounts are per item and whole bill (item first, then whole bill, shipping added last and never discounted), percentages up to 2 decimal places, amounts rounded half up to the paisa, with the browser and server maths checked against each other. Dates now show as `10 Oct 2026` without the time (learner request).
+- Slice 6 additions requested by the learner: a plain **Cancel bill** button (restores stock, marks the bill Cancelled, no replacement), since returning everything otherwise needed a replacement bill; a **Place of sale** column in Past bills.
 

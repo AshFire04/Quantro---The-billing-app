@@ -143,3 +143,14 @@ def test_dates_show_as_day_short_month_year_without_time(client):
         assert "2999-01-05" not in page and datetime.now().strftime("%Y-%m-%dT") not in page
     client.post("/bills/1/payment-received", data={"mode": "UPI"})
     assert f"(received {today})" in client.get("/bills/1").data.decode()
+
+
+def test_past_bills_shows_the_place_of_sale(client):
+    create(client)
+    add(client, name="Tray", price="450", stock="20")
+    for customer, place in (("Asha", "Karnataka"), ("Ravi", "Singapore")):
+        client.post("/billing/save", json={
+            "items": [{"product_id": 1, "quantity": 1}], "customer": customer,
+            "place_of_sale": place, "order_source": "Website", "payments": [{"mode": "UPI"}]})
+    page = client.get("/bills").data.decode()
+    assert "Place of sale" in page and "Karnataka" in page and "Singapore" in page

@@ -4,7 +4,7 @@
 from ..auth import login_required
 from ..db import get_db
 from ..services.billing import (BillError, ORDER_SOURCES, PAYMENT_MODES,
-                                receive_due)
+                                cancel_bill, receive_due)
 
 bp = Blueprint("bills", __name__)
 
@@ -16,7 +16,8 @@ def index():
     q = args.get("q", "").strip()
     f = {key: args.get(key, "").strip()
          for key in ("source", "mode", "due", "date_from", "date_to")}
-    sql = "SELECT * FROM bills WHERE shop_id = ?"
+    sql = ("SELECT bills.*, (SELECT invoice_number FROM bills r WHERE r.id = bills.replaced_by) "
+           "AS replaced_by_number FROM bills WHERE shop_id = ?")
     params = [g.shop["id"]]
     if q:
         # A bill number may be typed with a '#'. Customer name and phone are searched too.
@@ -59,7 +60,11 @@ def view(bill_id):
                        (bill_id,)).fetchall()
     payments = db.execute("SELECT * FROM payments WHERE bill_id = ? ORDER BY id",
                           (bill_id,)).fetchall()
+    other = lambda bill_id: db.execute(
+        "SELECT id, invoice_number FROM bills WHERE id = ? AND shop_id = ?",
+        (bill_id, g.shop["id"])).fetchone() if bill_id else None
     return render_template("bill_view.html", bill=bill, lines=lines, payments=payments,
+                           replaced_by=other(bill["replaced_by"]), replaces=other(bill["replaces"]),
                            just_saved=request.args.get("saved") == "1",
                            payment_modes=PAYMENT_MODES)
 
@@ -74,3 +79,14 @@ def payment_received(bill_id):
     except BillError as e:
         flash(str(e))
     return redirect(url_for("bills.view", bill_id=bill_id))
+
+@bp.route("/bills/<int:bill_id>/cancel", methods=("POST",))
+@login_required
+def cancel(bill_id):
+    try:
+        cancel_bill(get_db(), g.shop["id"], bill_id)
+        flash("Bill cancelled. Its items are back in stock.", "ok")
+    except BillError as e:
+        flash(str(e))
+    return redirect(url_for("bills.view", bill_id=bill_id))
+

@@ -94,3 +94,6 @@ th { font-size: .85em; color: var(--color-muted); font-weight: 600; }
 .sum-row label { flex: 1; color: var(--color-muted); font-size: .95em; }
 .sum-row .mini-input { width: 100px; }
 .line .amount { text-align: right; }
+
+.edit-banner { background: #fbefd5; color: #6b4a00; border-color: var(--color-warning); }
+.edit-banner a { color: inherit; font-weight: 600; margin-left: 6px; }
