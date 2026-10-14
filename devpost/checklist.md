@@ -69,7 +69,7 @@ Build mode: learn
   Learner check: Edit a bill to change a quantity, then check that Past bills and Inventory both look right.
   Commit: `Add edit and cancel for saved bills`
 
-- [ ] **7. You can set up your shop details and saved offers**
+- [x] **7. You can set up your shop details and saved offers**
   Becomes usable: Settings for shop details, bank details, terms and QR images; Add offer (category or whole bill, optional minimum); picking an offer on a bill.
   Why now: The print layout needs the settings, and offers extend the discount rules.
   PRD ref: `prd.md > Printing and shop settings`, `prd.md > Discounts and offers` (saved offers)
@@ -89,8 +89,18 @@ Build mode: learn
   Learner check: Print a bill to PDF and compare it with `Billing book.jpeg`.
   Commit: `Add printable bill layout`
 
-- [ ] **9. It works on a phone, with sample data and a README**
-  Becomes usable: One-column phone layout with large tap targets, `seed.py` for a labelled sample home-furnishings shop, and a README with the start steps.
+- [ ] **9. You can see how the shop is doing on a Home page**
+  Becomes usable: A Home page, modelled on `A · Dashboard home@2x.png`: greeting, tiles (today's sales, bills today, items running low, payments pending), a sales-this-week chart, a pie chart, a running-low list and recent bills.
+  Why now: It only reads data the earlier slices already save, so it comes after everything it summarises (bills, payments, dues, stock) is settled.
+  PRD ref: `prd.md > What We're Building` (Home page), `prd.md > Deferred From the POC`
+  Spec ref: `spec.md > Components > Home page (added late)`, `spec.md > Look and Feel`
+  Build: `app/routes/home.py`, `templates/home.html`, plain SVG/CSS charts, Home as the first menu item and the page opened after sign-in. Open question to settle first: what the pie chart splits (for example payment mode or order source).
+  Verify (mechanical): `pytest` that each tile and chart figure matches bills made in the test (cancelled bills excluded, shops kept separate); look at the page with no data and with some.
+  Learner check: Make a few bills, one with a due amount, and check that every tile and chart matches what you expect.
+  Commit: `Add Home page`
+
+- [ ] **10. It works on a phone, with sample data and a README**
+  Becomes usable: One-column phone layout with large tap targets (including Home), `seed.py` for a labelled sample home-furnishings shop, and a README with the start steps.
   Why now: Final polish needed for the demo and for others to try it.
   PRD ref: `prd.md > Look and Feel`, `prd.md > Screens and Layout`
   Spec ref: `spec.md > Look and Feel`, `spec.md > Where It Runs and How Someone Tries It`
@@ -98,7 +108,6 @@ Build mode: learn
   Verify (mechanical): Follow the README from a fresh clone-like state (install, seed, run); check layout at a narrow width.
   Learner check: Open the app on your phone over the same Wi-Fi and make a bill.
   Commit: `Add phone layout, sample data and README`
-
 ## Hands-on Checkpoints
 
 - [x] Early usable behavior explored — after slice 3 (the kernel: make a bill and see stock drop)
@@ -128,4 +137,6 @@ Activity mode: [not started]
 - Slice 4 additions requested by the learner: optional customer location on a bill; part payments with an amount due and a due date (the simple version of "pending payments", moved in from Deferred); a "Mark payment received" button on the bill page that records the received amount as a payment with the mode chosen; Past bills filters for order source, payment mode, has payment due and a date range (a status filter was added and then removed at the learner's request).
 - Slice 5: discounts are per item and whole bill (item first, then whole bill, shipping added last and never discounted), percentages up to 2 decimal places, amounts rounded half up to the paisa, with the browser and server maths checked against each other. Dates now show as `10 Oct 2026` without the time (learner request).
 - Slice 6 additions requested by the learner: a plain **Cancel bill** button (restores stock, marks the bill Cancelled, no replacement), since returning everything otherwise needed a replacement bill; a **Place of sale** column in Past bills.
+- New slice 9 (Home page) added at the learner's request on 14 Oct 2026; the phone layout, sample data and README slice moved to 10. The Home page is modelled on mock-up A with a pie chart; the learner chose to place it near the end. This reverses the earlier decision to leave mock-up A out of the proof of concept; `prd.md`, `scope.md` and `spec.md` were updated to match.
+- Slice 7: offers can be ticked on a bill; a discount typed by hand always beats an offer (even 0), the best matching offer wins, and a whole-bill offer is judged on the bill after item discounts. Bills store the names of offers applied as text so deleting an offer never changes an old bill. QR images are checked by their real file type, limited to 1 MB and 6 per shop, and served only to the shop that owns them.
 

@@ -61,6 +61,9 @@
   {% if whole_off or bill.shipping %}
   <p class="sum-row"><span>Subtotal</span><span class="mono">{{ subtotal | rupees }}</span></p>
   {% endif %}
+  {% if bill.offers_applied %}
+  <p class="muted">Offers applied: {{ bill.offers_applied }}</p>
+  {% endif %}
   {% if bill.whole_discount_pct %}
   <p class="sum-row"><span>Whole-bill discount ({{ "%g" | format(bill.whole_discount_pct) }}%)</span>
     <span class="mono">−{{ whole_off | rupees }}</span></p>
@@ -92,6 +95,7 @@
   {% endif %}
 </div>
 {% endblock %}
+
 
 
 

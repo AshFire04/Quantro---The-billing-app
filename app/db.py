@@ -50,7 +50,26 @@ CREATE TABLE IF NOT EXISTS bills (
     status TEXT NOT NULL DEFAULT 'Saved', -- Saved or Cancelled
     replaced_by INTEGER REFERENCES bills(id),
     replaces INTEGER REFERENCES bills(id),
+    offer_ids TEXT NOT NULL DEFAULT '',      -- offers picked on the bill, like '1,3'
+    offers_applied TEXT NOT NULL DEFAULT '', -- names of offers that changed a price (kept as text)
     UNIQUE (shop_id, invoice_number)
+);
+CREATE TABLE IF NOT EXISTS offers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    shop_id INTEGER NOT NULL REFERENCES shops(id),
+    name TEXT NOT NULL,
+    percentage REAL NOT NULL,
+    applies_to TEXT NOT NULL,               -- 'category' or 'bill'
+    category TEXT NOT NULL DEFAULT '',
+    min_amount INTEGER NOT NULL DEFAULT 0,  -- paise; the bill must reach this (whole-bill offers)
+    active INTEGER NOT NULL DEFAULT 1
+);
+CREATE TABLE IF NOT EXISTS shop_qr_codes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    shop_id INTEGER NOT NULL REFERENCES shops(id),
+    label TEXT NOT NULL,
+    filename TEXT NOT NULL,                 -- file inside instance/uploads/
+    position INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS bill_lines (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -94,7 +113,8 @@ def init_db():
     # Databases made before a column existed get it added here.
     columns = [row["name"] for row in db.execute("PRAGMA table_info(bills)")]
     added = {"customer_phone": "TEXT", "order_source": "TEXT", "customer_location": "TEXT",
-             "due_date": "TEXT", "due_amount": "INTEGER"}
+             "due_date": "TEXT", "due_amount": "INTEGER", "offer_ids": "TEXT",
+             "offers_applied": "TEXT"}
     for name, kind in added.items():
         if name not in columns:
             default = "0" if kind == "INTEGER" else "''"

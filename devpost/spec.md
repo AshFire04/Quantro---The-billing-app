@@ -1,4 +1,4 @@
----
+﻿---
 doc: spec
 status: approved
 ---
@@ -57,7 +57,7 @@ Carried forward from `prd.md > Look and Feel`.
 - **Type:** a clean, friendly sans-serif for text and a monospace face for numbers (amounts, quantities, invoice numbers), as in the mock-ups. System fonts first, so it works offline.
 - **Density:** spacious, with large tap targets (buttons at least about 44px high) for phone and for people with little technology experience.
 - **Tone of copy:** short and plain ("Save bill & update stock", "No products yet").
-- **Layout:** two columns on a laptop (items left, bill right); one column on a phone (items, then the bill). Reference mock-ups: `B · Billing first@2x.png`, `D · Inventory first@2x.png`, `C · Welcome and sign in@2x.png`. Mock-up A (dashboard) is not in the proof of concept.
+- **Layout:** two columns on a laptop (items left, bill right); one column on a phone (items, then the bill). Reference mock-ups: `B · Billing first@2x.png`, `D · Inventory first@2x.png`, `C · Welcome and sign in@2x.png`. Mock-up A (dashboard) is the reference for the Home page, added late by the learner (a simple version, built near the end).
 - **Print:** a separate print stylesheet formats the bill like her paper bill (header, item table, totals, bank details, terms, QR codes with labels).
 - Mock-up data is groceries; sample data in the build will be home furnishings.
 
@@ -89,6 +89,10 @@ Rules, derived from the PRD:
 - Order of discounts: line discounts first (a manual per-item percentage, or an offer for a category), then the whole-bill discount (a manual percentage, or an offer with a minimum amount, judged on the bill after line discounts). Shipping & handling is added last. *This order is my assumption; see Open Issues.*
 - A bill line keeps a **copy** of the item's code, name and price at the time of sale, so later price edits never change old bills.
 
+### Home page (added late)
+A signed-in landing page modelled on mock-up A. Every figure is read from the same database tables as the rest of the app (cancelled bills are left out of sales). Tiles: today's sales, bills today, items running low, payments pending (the sum of amounts still due on saved bills). Charts drawn with plain SVG/CSS (no chart library): sales over the last seven days, and a pie chart (what it splits, such as payment mode, is decided when the slice is built). A running-low list and the latest bills.
+PRD ref: `prd.md > What We're Building`.
+Files: `app/routes/home.py`, `templates/home.html`.
 ### Past bills
 List with search by bill number or customer, newest first; view a bill; Edit (replace) and Cancelled status.
 PRD ref: `prd.md > Past bills`, `prd.md > Saving, editing and cancelling a bill`.
@@ -204,3 +208,5 @@ Deferred integration: **Shopify stock sync** (`prd.md > Deferred From the POC`).
 - **Discount order** — line discounts first, then the whole-bill discount, with the offer minimum judged after line discounts. Confirm that this matches how she calculates by hand (an example bill would settle it).
 - **Final colour theme and logo** — can wait for the build (`prd.md > Open Questions`).
 - **Flask on Python 3.14** — check at the start of the build.
+
+

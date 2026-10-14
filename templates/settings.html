@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Settings</h1></div>
+
+<section class="card settings-card">
+  <h2>Shop details</h2>
+  <p class="muted">These appear at the top and bottom of your printed bill.</p>
+  <form method="post" action="{{ url_for('settings.details') }}" class="form">
+    <label>Shop name*
+      <input name="name" value="{{ g.shop['name'] }}" required>
+    </label>
+    <label>Phone number(s)
+      <input name="phone" value="{{ g.shop['phone'] }}" placeholder="e.g. 98765 43210, 080 1234 5678">
+    </label>
+    <label>Website
+      <input name="website" value="{{ g.shop['website'] }}" placeholder="e.g. www.sajjahome.com">
+    </label>
+    <label>Bank details
+      <textarea name="bank_details" rows="4" placeholder="Account name, number, IFSC, bank and branch">{{ g.shop['bank_details'] }}</textarea>
+    </label>
+    <label>Terms line
+      <textarea name="terms" rows="2" placeholder="e.g. Goods once sold will not be taken back.">{{ g.shop['terms'] }}</textarea>
+    </label>
+    <button class="btn primary" type="submit">Save shop details</button>
+  </form>
+</section>
+
+<section class="card settings-card">
+  <h2>QR codes</h2>
+  <p class="muted">PNG or JPG, under 1 MB each. They print on the bill with their label.</p>
+  {% if qr_codes %}
+  <div class="qr-grid">
+    {% for q in qr_codes %}
+    <figure class="qr">
+      <img src="{{ url_for('settings.uploaded_file', filename=q.filename) }}" alt="QR code: {{ q.label }}">
+      <figcaption>{{ q.label }}</figcaption>
+      <form method="post" action="{{ url_for('settings.delete_qr', qr_id=q.id) }}"
+            onsubmit="return confirm('Remove this QR code?')">
+        <button class="btn danger small" type="submit">Remove</button>
+      </form>
+    </figure>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="muted">No QR codes yet.</p>
+  {% endif %}
+  {% if qr_codes | length < max_qr_codes %}
+  <form method="post" action="{{ url_for('settings.add_qr') }}" enctype="multipart/form-data" class="form inline-form">
+    <label>Label
+      <input name="label" placeholder="e.g. UPI" maxlength="40" required>
+    </label>
+    <label>Image
+      <input type="file" name="image" accept="image/png,image/jpeg" required>
+    </label>
+    <button class="btn primary" type="submit">Add QR code</button>
+  </form>
+  {% endif %}
+</section>
+
+<section class="card settings-card">
+  <h2>Offers</h2>
+  <p class="muted">Save an offer once, then pick it on a bill. A discount you type by hand always wins over an offer.</p>
+  {% if offers %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Offer</th><th class="num">Discount</th><th>Applies to</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+      {% for o in offers %}
+        <tr>
+          <td>{{ o.name }}</td>
+          <td class="num mono">{{ "%g" | format(o.percentage) }}%</td>
+          <td>
+            {% if o.applies_to == 'category' %}Items in "{{ o.category }}"
+            {% else %}Whole bill{% if o.min_amount %}, when it reaches {{ o.min_amount | rupees }}{% endif %}{% endif %}
+          </td>
+          <td><span class="badge {{ '' if o.active else 'low' }}">{{ 'On' if o.active else 'Off' }}</span></td>
+          <td class="actions">
+            <form method="post" action="{{ url_for('settings.toggle_offer', offer_id=o.id) }}">
+              <button class="btn small" type="submit">Turn {{ 'off' if o.active else 'on' }}</button>
+            </form>
+            <form method="post" action="{{ url_for('settings.delete_offer', offer_id=o.id) }}"
+                  onsubmit="return confirm('Delete this offer? Bills that used it keep its name.')">
+              <button class="btn danger small" type="submit">Delete</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted">No offers yet.</p>
+  {% endif %}
+
+  <h3>Add offer</h3>
+  <form method="post" action="{{ url_for('settings.add_offer') }}" class="form inline-form" id="offer-form">
+    <label>Name
+      <input name="name" placeholder="e.g. Diwali bedsheets" required>
+    </label>
+    <label>Discount (%)
+      <input name="percentage" inputmode="decimal" placeholder="e.g. 15" required>
+    </label>
+    <label>Applies to
+      <select name="applies_to" id="applies-to">
+        <option value="category">Items in a category</option>
+        <option value="bill">The whole bill</option>
+      </select>
+    </label>
+    <label id="category-field">Category
+      <input name="category" list="categories" placeholder="e.g. Bedsheets">
+      <datalist id="categories">{% for c in categories %}<option value="{{ c }}">{% endfor %}</datalist>
+    </label>
+    <label id="minimum-field" hidden>Minimum bill amount (₹, optional)
+      <input name="min_amount" inputmode="decimal" placeholder="e.g. 2500">
+    </label>
+    <button class="btn primary" type="submit">Add offer</button>
+  </form>
+</section>
+
+<script>
+  const appliesTo = document.getElementById("applies-to");
+  function showOfferFields() {
+    const whole = appliesTo.value === "bill";
+    document.getElementById("category-field").hidden = whole;
+    document.getElementById("minimum-field").hidden = !whole;
+  }
+  appliesTo.onchange = showOfferFields;
+  showOfferFields();
+</script>
+{% endblock %}

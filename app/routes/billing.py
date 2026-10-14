@@ -1,4 +1,4 @@
-from flask import (Blueprint, flash, g, jsonify, redirect, render_template, request,
+﻿from flask import (Blueprint, flash, g, jsonify, redirect, render_template, request,
                    url_for)
 
 from ..auth import login_required
@@ -8,6 +8,16 @@ from ..services.billing import (BillError, ORDER_SOURCES, PAYMENT_MODES,
 from ..services.money import paise_to_input
 
 bp = Blueprint("billing", __name__)
+
+
+def active_offers():
+    """The shop's switched-on offers, in the shape the Billing screen needs."""
+    return [{"id": o["id"], "name": o["name"], "pct": o["percentage"],
+             "applies_to": o["applies_to"], "category": o["category"],
+             "min_amount": o["min_amount"]}
+            for o in get_db().execute(
+                "SELECT * FROM offers WHERE shop_id = ? AND active = 1 ORDER BY id",
+                (g.shop["id"],)).fetchall()]
 
 
 def shop_products():
@@ -23,7 +33,7 @@ def index():
     return render_template("billing.html", products=shop_products(),
                            next_number=g.shop["next_invoice_number"],
                            payment_modes=PAYMENT_MODES, order_sources=ORDER_SOURCES,
-                           editing=None, prefill=None, skipped=[])
+                           editing=None, prefill=None, skipped=[], offers=active_offers())
 
 
 def split_other(stored, allowed):
@@ -66,6 +76,9 @@ def edit(bill_id):
                         (bill_id,)).fetchall():
         mode, other = split_other(p["mode"], PAYMENT_MODES)
         payments.append({"mode": mode, "other": other, "amount": paise_to_input(p["amount"])})
+    offers = active_offers()
+    still_on = {o["id"] for o in offers}
+    picked = [int(i) for i in old["offer_ids"].split(",") if i and int(i) in still_on]
     source, source_other = split_other(old["order_source"], ORDER_SOURCES)
     prefill = {
         "replaces": bill_id,
@@ -74,14 +87,14 @@ def edit(bill_id):
         "source": source, "source_other": source_other,
         "whole_discount": "%g" % old["whole_discount_pct"] if old["whole_discount_pct"] else "",
         "shipping": paise_to_input(old["shipping"]) if old["shipping"] else "",
-        "items": items, "payments": payments,
+        "items": items, "payments": payments, "offer_ids": picked,
         "due_amount": paise_to_input(old["due_amount"]) if old["due_amount"] else "",
         "due_date": old["due_date"],
     }
     return render_template("billing.html", products=products,
                            next_number=g.shop["next_invoice_number"],
                            payment_modes=PAYMENT_MODES, order_sources=ORDER_SOURCES,
-                           editing=old, prefill=prefill, skipped=skipped)
+                           editing=old, prefill=prefill, skipped=skipped, offers=offers)
 
 
 @bp.route("/billing/save", methods=("POST",))
@@ -107,7 +120,8 @@ def save():
                             due_date=str(data.get("due_date", "")),
                             whole_discount=data.get("whole_discount", ""),
                             shipping=data.get("shipping", ""),
-                            replaces=replaces)
+                            replaces=replaces, offer_ids=data.get("offer_ids") or [])
     except BillError as e:
         return jsonify(error=str(e)), 400
     return jsonify(url=url_for("bills.view", bill_id=bill_id, saved=1))
+

@@ -74,6 +74,7 @@ function changeQty(id, delta) {
 // so the numbers here match the server exactly. The server still recalculates on Save.
 const discounts = {};         // product id -> the percentage typed for that item
 const lineCells = {};         // product id -> the amount cell on its row
+const lineInputs = {};        // product id -> the discount box on its row
 
 function hundredths(text) {
   const n = parseFloat(text);
@@ -84,13 +85,48 @@ function takeOff(paise, hundredthsOff) {
   return Math.floor((paise * (10000 - hundredthsOff) + 5000) / 10000);   // rounds half up
 }
 
+// ---- Saved offers: a percentage typed by hand always wins; a blank box uses the best picked offer ----
+
+const offers = JSON.parse(document.getElementById("offers-data").textContent);
+const picked = new Set();     // ids of the offers ticked on this bill
+
+function offerHundredths(offer) { return Math.round(offer.pct * 100); }
+
+function bestCategoryOffer(id) {
+  const category = (byId[id].category || "").trim().toLowerCase();
+  if (!category) return null;
+  const matching = offers.filter(o => picked.has(o.id) && o.applies_to === "category" &&
+                                      o.category.trim().toLowerCase() === category);
+  return matching.sort((a, b) => b.pct - a.pct)[0] || null;
+}
+
+function bestWholeOffer(subtotal) {
+  const qualifying = offers.filter(o => picked.has(o.id) && o.applies_to === "bill" &&
+                                        subtotal >= o.min_amount);
+  return qualifying.sort((a, b) => b.pct - a.pct)[0] || null;
+}
+
+function isTyped(text) { return (text || "").trim() !== ""; }
+
+function lineHundredths(id) {
+  if (isTyped(discounts[id])) return hundredths(discounts[id]);
+  const offer = bestCategoryOffer(id);
+  return offer ? offerHundredths(offer) : 0;
+}
+
 function lineAmount(id) {
-  return takeOff(byId[id].price * bill[id], hundredths(discounts[id]));
+  return takeOff(byId[id].price * bill[id], lineHundredths(id));
+}
+
+function wholeHundredths(subtotal) {
+  if (isTyped($("whole-discount").value)) return hundredths($("whole-discount").value);
+  const offer = bestWholeOffer(subtotal);
+  return offer ? offerHundredths(offer) : 0;
 }
 
 function computeTotals() {
   const subtotal = Object.keys(bill).reduce((sum, id) => sum + lineAmount(id), 0);
-  const afterWhole = takeOff(subtotal, hundredths($("whole-discount").value));
+  const afterWhole = takeOff(subtotal, wholeHundredths(subtotal));
   const shipping = Math.max(Math.round((parseFloat($("shipping").value) || 0) * 100), 0);
   return { subtotal, wholeOff: subtotal - afterWhole, shipping, total: afterWhole + shipping };
 }
@@ -122,6 +158,7 @@ function renderBill() {
     const box = row.querySelector(".line-discount input");
     box.value = discounts[id] || "";
     box.oninput = () => { discounts[id] = box.value; refreshTotals(); };
+    lineInputs[id] = box;
     lineCells[id] = row.querySelector(".amount");
     $("lines").append(row);
   }
@@ -138,7 +175,14 @@ function refreshTotals() {
     lineCells[id].innerHTML = now === original ? rupees(now)
       : `<s class="muted">${rupees(original)}</s> ${rupees(now)}`;   // original, then discounted
   }
+  // A blank discount box shows the offer percentage that would apply to it.
+  for (const id of Object.keys(bill)) {
+    const offer = bestCategoryOffer(id);
+    lineInputs[id].placeholder = offer ? `${offer.pct} (${offer.name})` : "0";
+  }
   const t = computeTotals();
+  const wholeOffer = bestWholeOffer(t.subtotal);
+  $("whole-discount").placeholder = wholeOffer ? `${wholeOffer.pct} (${wholeOffer.name})` : "0";
   $("subtotal").textContent = rupees(t.subtotal);
   $("whole-off").textContent = t.wholeOff ? "−" + rupees(t.wholeOff) : "";
   $("total").textContent = rupees(t.total);
@@ -162,12 +206,35 @@ $("clear").onclick = () => {
   for (const id of Object.keys(bill)) { delete bill[id]; delete discounts[id]; }
   $("whole-discount").value = "";
   $("shipping").value = "";
+  picked.clear();
+  renderOffers();
   $("customer").value = "";
   $("phone").value = "";
   $("location").value = "";
   if (dueOpen) $("due-toggle").onclick();   // closes the due panel and empties it
   renderBill();
 };
+
+// ---- The offer tick-boxes ----
+
+function renderOffers() {
+  $("offers-box").hidden = offers.length === 0;
+  $("offers-list").innerHTML = "";
+  for (const o of offers) {
+    const label = document.createElement("label");
+    label.className = "offer-pick";
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.checked = picked.has(o.id);
+    box.onchange = () => { box.checked ? picked.add(o.id) : picked.delete(o.id); refreshTotals(); };
+    const text = document.createElement("span");
+    const where = o.applies_to === "category" ? `on ${o.category}`
+      : (o.min_amount ? `on the bill above ${rupees(o.min_amount)}` : "on the whole bill");
+    text.textContent = ` ${o.name}: ${o.pct}% off ${where}`;
+    label.append(box, text);
+    $("offers-list").append(label);
+  }
+}
 
 // ---- Order source and payment ----
 
@@ -289,7 +356,8 @@ $("save").onclick = async () => {
                              place_of_sale: $("place").value,
                              order_source: $("source").value, order_source_other: $("source-other").value,
                              payments: paymentsForServer(),
-                             replaces: prefill ? prefill.replaces : null }),
+                             replaces: prefill ? prefill.replaces : null,
+                             offer_ids: [...picked] }),
     });
     const data = await res.json();
     if (res.ok) { window.location = data.url; return; }
@@ -318,6 +386,7 @@ function applyPrefill(old) {
   $("source").value = old.source;
   $("source-other").value = old.source_other;
   showOther($("source"), $("source-other"));
+  for (const id of old.offer_ids) picked.add(id);
   $("whole-discount").value = old.whole_discount;
   $("shipping").value = old.shipping;
   if (old.due_amount) {
@@ -337,9 +406,11 @@ function applyPrefill(old) {
 }
 
 if (prefill) applyPrefill(prefill);
+renderOffers();
 renderCategories();
 renderCards();
 renderBill();
+
 
 
 

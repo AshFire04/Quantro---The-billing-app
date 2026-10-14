@@ -106,13 +106,43 @@ def check_payments(payments, total):
     return checked
 
 
-def price_bill(db, shop_id, items, whole_discount_pct=Decimal(0), shipping=0):
-    """Work out the lines and total for a bill.
+def load_offers(db, shop_id, offer_ids):
+    """The saved offers picked on a bill. Each must still exist and be switched on."""
+    offers, seen = [], set()
+    for raw in offer_ids or []:
+        try:
+            offer_id = int(raw)
+        except (TypeError, ValueError):
+            raise BillError("An offer on this bill is no longer available")
+        if offer_id in seen:
+            continue
+        seen.add(offer_id)
+        offer = db.execute("SELECT * FROM offers WHERE id = ? AND shop_id = ? AND active = 1",
+                           (offer_id, shop_id)).fetchone()
+        if offer is None:
+            raise BillError("An offer on this bill is no longer available")
+        offers.append({"id": offer["id"], "name": offer["name"],
+                       "pct": Decimal(str(offer["percentage"])),
+                       "applies_to": offer["applies_to"],
+                       "category": offer["category"].strip().lower(),
+                       "min_amount": offer["min_amount"]})
+    return offers
 
-    items: [{"product_id": 3, "quantity": 2, "discount": "10"}, ...]  (discount is optional)
-    The order is: each item's own discount first, then the whole-bill discount on the
-    sum of those, then shipping & handling is added last.
-    Returns (lines, total). Raises BillError if a product is missing or stock is short.
+
+def price_details(db, shop_id, items, whole_discount_pct=None, shipping=0, offers=()):
+    """Work out the lines and total for a bill, and which offers changed the price.
+
+    items: [{"product_id": 3, "quantity": 2, "discount": "10"}, ...]
+    The order is: each item's own discount first, then the whole-bill discount on the sum
+    of those, then shipping & handling is added last.
+
+    A percentage typed by hand always wins. Where none was typed (blank), the best picked
+    offer is used: a category offer for an item of that category, and a whole-bill offer
+    once the bill (after item discounts) reaches its minimum. `whole_discount_pct=None`
+    means "nothing typed".
+
+    Returns {"lines", "total", "whole_pct", "offers_applied"}. Raises BillError if a product
+    is missing or stock is short.
     """
     # The same product added twice becomes one line.
     wanted = {}
@@ -124,7 +154,8 @@ def price_bill(db, shop_id, items, whole_discount_pct=Decimal(0), shipping=0):
             raise BillError("Something is wrong with an item on the bill")
         if quantity < 1:
             raise BillError("Each item needs a quantity of at least 1")
-        discount = parse_percent(item.get("discount"), "An item discount")
+        typed = str(item.get("discount") if item.get("discount") is not None else "").strip()
+        discount = parse_percent(typed, "An item discount") if typed else None
         if product_id in wanted:
             wanted[product_id][0] += quantity       # the first discount typed is kept
         else:
@@ -132,6 +163,7 @@ def price_bill(db, shop_id, items, whole_discount_pct=Decimal(0), shipping=0):
     if not wanted:
         raise BillError("Add at least one item to the bill")
 
+    applied = {}                                    # offer id -> name, in the order they won
     lines = []
     for product_id, (quantity, discount) in wanted.items():
         product = db.execute(
@@ -142,6 +174,14 @@ def price_bill(db, shop_id, items, whole_discount_pct=Decimal(0), shipping=0):
         if quantity > product["stock"]:
             raise BillError(f"Only {product['stock']} left of {product['name']}; "
                             "please change the quantity")
+        if discount is None:
+            category = product["category"].strip().lower()
+            matching = [o for o in offers if o["applies_to"] == "category"
+                        and category and o["category"] == category]
+            best = max(matching, key=lambda o: o["pct"], default=None)
+            discount = best["pct"] if best else Decimal(0)
+            if best and best["pct"] > 0:
+                applied[best["id"]] = best["name"]
         lines.append({
             "product_id": product_id,
             "code": product["code"],
@@ -152,14 +192,27 @@ def price_bill(db, shop_id, items, whole_discount_pct=Decimal(0), shipping=0):
             "line_amount": take_percent_off(product["price"] * quantity, discount),
         })
     subtotal = sum(line["line_amount"] for line in lines)
+    if whole_discount_pct is None:
+        qualifying = [o for o in offers if o["applies_to"] == "bill"
+                      and subtotal >= o["min_amount"]]
+        best = max(qualifying, key=lambda o: o["pct"], default=None)
+        whole_discount_pct = best["pct"] if best else Decimal(0)
+        if best and best["pct"] > 0:
+            applied[best["id"]] = best["name"]
     total = take_percent_off(subtotal, whole_discount_pct) + shipping
-    return lines, total
+    return {"lines": lines, "total": total, "whole_pct": whole_discount_pct,
+            "offers_applied": list(applied.values())}
 
+
+def price_bill(db, shop_id, items, whole_discount_pct=Decimal(0), shipping=0, offers=()):
+    """Same as price_details, but returns just (lines, total)."""
+    result = price_details(db, shop_id, items, whole_discount_pct, shipping, offers)
+    return result["lines"], result["total"]
 
 def save_bill(db, shop_id, items, customer_name, customer_phone="", place_of_sale="",
               order_source="", order_source_other="", payments=None,
               customer_location="", due_amount="", due_date="", whole_discount="",
-              shipping="", replaces=None):
+              shipping="", replaces=None, offer_ids=()):
     """Save a bill and lower the stock, all in one go. Returns the new bill's id.
 
     With `replaces` (the id of a saved bill), this is an edit: the old bill's items go back
@@ -175,14 +228,17 @@ def save_bill(db, shop_id, items, customer_name, customer_phone="", place_of_sal
     if customer_phone and not 7 <= sum(c.isdigit() for c in customer_phone) <= 15:
         raise BillError("The phone number doesn't look right")
     source = clean_choice(order_source, order_source_other, ORDER_SOURCES, "order source")
-    whole_pct = parse_percent(whole_discount, "The whole-bill discount")
+    typed_whole = str(whole_discount if whole_discount is not None else "").strip()
+    whole_pct = parse_percent(typed_whole, "The whole-bill discount") if typed_whole else None
     shipping_paise = parse_shipping(shipping)
     try:
         with db:  # one transaction: commits at the end, or undoes everything on an error
             if replaces is not None:
                 put_old_items_back(db, shop_id, replaces)
             # Priced inside the transaction, so an edit sees the stock the old bill gave back.
-            lines, total = price_bill(db, shop_id, items, whole_pct, shipping_paise)
+            offers = load_offers(db, shop_id, offer_ids)
+            priced = price_details(db, shop_id, items, whole_pct, shipping_paise, offers)
+            lines, total = priced["lines"], priced["total"]
             due, due_on = check_due(due_amount, due_date, total)
             payments = check_payments(payments, total - due)
             shop = db.execute("SELECT next_invoice_number FROM shops WHERE id = ?",
@@ -193,12 +249,14 @@ def save_bill(db, shop_id, items, customer_name, customer_phone="", place_of_sal
             bill_id = db.execute(
                 "INSERT INTO bills (shop_id, invoice_number, created_at, customer_name, "
                 "customer_phone, customer_location, place_of_sale, order_source, total, "
-                "due_amount, due_date, whole_discount_pct, shipping, replaces) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "due_amount, due_date, whole_discount_pct, shipping, replaces, offer_ids, "
+                "offers_applied) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (shop_id, number, datetime.now().isoformat(timespec="seconds"),
                  customer_name, customer_phone, customer_location.strip(),
-                 place_of_sale.strip(), source, total, due, due_on, float(whole_pct),
-                 shipping_paise, replaces)).lastrowid
+                 place_of_sale.strip(), source, total, due, due_on,
+                 float(priced["whole_pct"]), shipping_paise, replaces,
+                 ",".join(str(o["id"]) for o in offers),
+                 ", ".join(priced["offers_applied"]))).lastrowid
             if replaces is not None:
                 db.execute("UPDATE bills SET status = 'Cancelled', replaced_by = ? "
                            "WHERE id = ?", (bill_id, replaces))
@@ -268,6 +326,7 @@ def receive_due(db, shop_id, bill_id, mode, other=""):
                    (bill_id, mode, bill["due_amount"],
                     datetime.now().isoformat(timespec="seconds")))
         db.execute("UPDATE bills SET due_amount = 0, due_date = '' WHERE id = ?", (bill_id,))
+
 
 
 

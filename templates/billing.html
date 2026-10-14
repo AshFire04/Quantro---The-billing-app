@@ -53,6 +53,11 @@
     <div id="lines" class="lines"></div>
     <p id="empty-bill" class="muted">Tap an item to add it to the bill.</p>
 
+    <div id="offers-box" class="offers-box" hidden>
+      <strong>Offers</strong>
+      <div id="offers-list"></div>
+    </div>
+
     <div class="totals">
       <div class="sum-row"><span>Subtotal</span><span id="subtotal" class="mono">₹0</span></div>
       <div class="sum-row">
@@ -106,10 +111,12 @@
 </div>
 
 <script id="products-data" type="application/json">{{ products | tojson }}</script>
+<script id="offers-data" type="application/json">{{ offers | tojson }}</script>
 <script id="prefill-data" type="application/json">{{ prefill | tojson }}</script>
 <script id="modes-data" type="application/json">{{ payment_modes | tojson }}</script>
 <script src="{{ url_for('static', filename='js/billing.js') }}"></script>
 {% endif %}
 {% endblock %}
+
 
 

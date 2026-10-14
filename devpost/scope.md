@@ -1,4 +1,4 @@
----
+﻿---
 doc: scope
 status: approved
 ---
@@ -36,10 +36,11 @@ In a short demo video: open Quantro (logged in) and see the product list with cu
 - Update her Shopify store's stock when a bill is created (secondary feature; only once the rest works and is proven error-proof, since it touches her live store).
 - Record new purchases to increase stock.
 - Print/download bills as PDF.
-- Dashboard: today's sales, number of bills, best sellers, daily and monthly summaries.
+- Dashboard: best sellers, daily and monthly summaries. (A simple Home page with today's sales, bills today, low stock, pending payments and charts was added to the proof of concept by the learner on 14 Oct 2026.)
 - State-wise GST rules and filing summaries, using the stored place of sale.
 
 ## Explicitly Cut
 - A separate customer storefront: she already has a Shopify site, so Quantro won't duplicate one.
 - Online ordering by customers: handled by her existing Shopify checkout.
 - Full GST filing: depends on state and country rules and is too large for a proof of concept.
+

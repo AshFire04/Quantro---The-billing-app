@@ -97,3 +97,19 @@ th { font-size: .85em; color: var(--color-muted); font-weight: 600; }
 
 .edit-banner { background: #fbefd5; color: #6b4a00; border-color: var(--color-warning); }
 .edit-banner a { color: inherit; font-weight: 600; margin-left: 6px; }
+
+/* Settings */
+.settings-card { margin-bottom: 20px; }
+.settings-card h2 { margin-top: 0; }
+.form textarea { display: block; width: 100%; margin-top: 6px; padding: 8px 12px; font-size: 1em; border: 1px solid var(--color-border); border-radius: 10px; font-family: inherit; }
+.inline-form { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin-top: 12px; }
+.inline-form label { margin-bottom: 0; flex: 1 1 180px; }
+.inline-form label[hidden] { display: none; }
+.qr-grid { display: flex; flex-wrap: wrap; gap: 16px; margin: 12px 0; }
+.qr { margin: 0; text-align: center; }
+.qr img { width: 120px; height: 120px; object-fit: contain; border: 1px solid var(--color-border); border-radius: 10px; background: #fff; }
+.qr figcaption { font-weight: 600; margin: 6px 0; }
+
+.offers-box { margin: 14px 0; padding: 10px 14px; background: var(--color-ok-bg); border-radius: 12px; }
+.offer-pick { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: .95em; min-height: 36px; }
+.offer-pick input { width: 20px; height: 20px; }
