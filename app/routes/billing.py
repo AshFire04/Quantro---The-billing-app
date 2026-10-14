@@ -31,7 +31,10 @@ def save():
                             place_of_sale=str(data.get("place_of_sale", "")),
                             order_source=str(data.get("order_source", "")),
                             order_source_other=str(data.get("order_source_other", "")),
-                            payments=data.get("payments"))
+                            payments=data.get("payments"),
+                            customer_location=str(data.get("location", "")),
+                            due_amount=str(data.get("due_amount", "")),
+                            due_date=str(data.get("due_date", "")))
     except BillError as e:
         return jsonify(error=str(e)), 400
-    return jsonify(url=url_for("bills.view", bill_id=bill_id))
+    return jsonify(url=url_for("bills.view", bill_id=bill_id, saved=1))

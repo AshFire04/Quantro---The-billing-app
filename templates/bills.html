@@ -1,0 +1,66 @@
+﻿{% extends "base.html" %}
+{% block title %}Past bills{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Past bills</h1>
+  <a class="btn primary" href="{{ url_for('billing.index') }}">New bill</a>
+</div>
+
+{% if not has_any %}
+  <div class="card empty">
+    <p>No bills yet.</p>
+    <a class="btn primary" href="{{ url_for('billing.index') }}">Make your first bill</a>
+  </div>
+{% else %}
+  <form method="get" class="toolbar filter-form">
+    <input name="q" value="{{ q }}" placeholder="Search by bill number, customer or phone" aria-label="Search">
+    <label>Order via
+      <select name="source">
+        <option value="">All</option>
+        {% for s in order_sources %}<option {{ 'selected' if f.source == s }}>{{ s }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Paid by
+      <select name="mode">
+        <option value="">Any</option>
+        {% for m in payment_modes %}<option {{ 'selected' if f.mode == m }}>{{ m }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Payment
+      <select name="due">
+        <option value="">All bills</option>
+        <option value="due" {{ 'selected' if f.due == 'due' }}>Has payment due</option>
+      </select>
+    </label>
+    <label>From <input type="date" name="date_from" value="{{ f.date_from }}"></label>
+    <label>To <input type="date" name="date_to" value="{{ f.date_to }}"></label>
+    <button class="btn primary" type="submit">Apply</button>
+    {% if filtering %}<a class="btn" href="{{ url_for('bills.index') }}">Clear</a>{% endif %}
+  </form>
+
+  {% if bills %}
+  <div class="card table-wrap">
+    <table>
+      <thead>
+        <tr><th>Bill</th><th>Date</th><th>Customer</th><th class="num">Amount</th><th>Due</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+      {% for b in bills %}
+        <tr>
+          <td class="mono"><a href="{{ url_for('bills.view', bill_id=b.id) }}">#{{ b.invoice_number }}</a></td>
+          <td>{{ b.created_at.replace('T', ' ')[:16] }}</td>
+          <td>{{ b.customer_name }}</td>
+          <td class="num mono">{{ b.total | rupees }}</td>
+          <td class="mono">{% if b.due_amount %}{{ b.due_amount | rupees }} by {{ b.due_date }}{% endif %}</td>
+          <td><span class="badge {{ 'out' if b.status == 'Cancelled' }}">{{ b.status }}</span></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p class="muted">No bills match these filters.</p>
+  {% endif %}
+{% endif %}
+{% endblock %}
+

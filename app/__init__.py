@@ -35,11 +35,6 @@ def create_app(test_config=None):
         return redirect(url_for("billing.index"))
 
     # Placeholder screens; each is replaced by its own slice later.
-    @app.route("/bills")
-    @auth.login_required
-    def bills():
-        return auth.placeholder("Past bills")
-
     @app.route("/settings")
     @auth.login_required
     def settings():

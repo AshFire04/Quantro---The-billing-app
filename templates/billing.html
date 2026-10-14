@@ -21,11 +21,14 @@
       <h2>Bill #{{ next_number }}</h2>
       <button type="button" id="clear" class="btn">Clear</button>
     </div>
-    <label class="field">Customer name
-      <input id="customer" placeholder="Customer name" required>
+    <label class="field">Customer Name*
+      <input id="customer" placeholder="Customer Name" required>
     </label>
     <label class="field">Phone number (optional)
       <input id="phone" type="tel" placeholder="e.g. 98765 43210">
+    </label>
+    <label class="field">Customer location (optional)
+      <input id="location" placeholder="e.g. Indiranagar, Bengaluru">
     </label>
     <label class="field">Place of sale (state or country)
       <input id="place" placeholder="e.g. Karnataka">
@@ -62,6 +65,20 @@
         <button type="button" id="split-add" class="btn small">+ Add a payment</button>
         <p id="split-left" class="muted"></p>
       </div>
+
+      <div class="page-head due-head">
+        <strong>Payment due</strong>
+        <button type="button" id="due-toggle" class="btn small">Add due</button>
+      </div>
+      <div id="due-panel" hidden>
+        <label class="field">Amount still to be paid (₹)
+          <input id="due-amount" inputmode="decimal" placeholder="e.g. 500">
+        </label>
+        <label class="field">Date the payment is due
+          <input id="due-date" type="date">
+        </label>
+      </div>
+      <p id="pay-now" class="muted" hidden></p>
     </div>
 
     <div id="error" class="flash" hidden></div>

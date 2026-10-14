@@ -15,15 +15,15 @@
     <nav>
       <a href="{{ url_for('billing.index') }}">Billing</a>
       <a href="{{ url_for('inventory.index') }}">Inventory</a>
-      <a href="{{ url_for('bills') }}">Past bills</a>
+      <a href="{{ url_for('bills.index') }}">Past bills</a>
       <a href="{{ url_for('settings') }}">Settings</a>
     </nav>
     <span class="who">{{ g.shop['name'] }} · <a href="{{ url_for('auth.logout') }}">Sign out</a></span>
   </header>
   {% endif %}
   <main class="{% block main_class %}page{% endblock %}">
-    {% for message in get_flashed_messages() %}
-      <div class="flash">{{ message }}</div>
+    {% for category, message in get_flashed_messages(with_categories=true) %}
+      <div class="flash {{ 'ok' if category == 'ok' }}">{{ message }}</div>
     {% endfor %}
     {% block content %}{% endblock %}
   </main>

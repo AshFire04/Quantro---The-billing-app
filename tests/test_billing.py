@@ -169,3 +169,51 @@ def test_split_payment_must_add_up_to_the_total(shop):
     assert stock_of(shop, "Tray") == 8                              # only the good bill went through
     assert shop.execute("SELECT COUNT(*) FROM bills").fetchone()[0] == 1
 
+
+
+def test_customer_location_is_saved_and_optional(shop):
+    items = [{"product_id": 1, "quantity": 1}]
+    save(shop, items, "Asha", customer_location="Indiranagar, Bengaluru")
+    save(shop, items, "Ravi")
+    places = [r[0] for r in shop.execute("SELECT customer_location FROM bills ORDER BY id")]
+    assert places == ["Indiranagar, Bengaluru", ""]
+
+
+def test_part_payment_with_the_rest_due_later(shop):
+    items = [{"product_id": 1, "quantity": 2}]                      # total ₹900
+    save(shop, items, "Asha", payments=[{"mode": "UPI"}], due_amount="400", due_date="2999-01-31")
+    bill = shop.execute("SELECT due_amount, due_date FROM bills").fetchone()
+    assert (bill["due_amount"], bill["due_date"]) == (40000, "2999-01-31")
+    rows = shop.execute("SELECT mode, amount FROM payments").fetchall()
+    assert [tuple(r) for r in rows] == [("UPI", 50000)]             # ₹900 - ₹400 paid now
+
+
+def test_split_payment_adds_up_to_what_is_paid_now(shop):
+    items = [{"product_id": 1, "quantity": 2}]                      # ₹900, ₹300 due: ₹600 now
+    save(shop, items, "Asha", due_amount="300", due_date="2999-01-31",
+         payments=[{"mode": "Cash", "amount": "400"}, {"mode": "UPI", "amount": "200"}])
+    with pytest.raises(BillError, match="paid now"):
+        save(shop, items, "Asha", due_amount="300", due_date="2999-01-31",
+             payments=[{"mode": "Cash", "amount": "500"}, {"mode": "UPI", "amount": "400"}])
+
+
+def test_whole_bill_due_needs_no_payment_mode(shop):
+    save(shop, [{"product_id": 1, "quantity": 1}], "Asha", payments=[],
+         due_amount="450", due_date="2999-01-31")
+    assert shop.execute("SELECT COUNT(*) FROM payments").fetchone()[0] == 0
+    assert stock_of(shop, "Tray") == 9                               # stock still drops
+
+
+def test_due_rules(shop):
+    items = [{"product_id": 1, "quantity": 1}]                      # ₹450
+    for kwargs, message in [
+        ({"due_amount": "500", "due_date": "2999-01-31"}, "more than the bill total"),
+        ({"due_amount": "100", "due_date": ""}, "date the payment is due"),
+        ({"due_amount": "100", "due_date": "31/01/2999"}, "date the payment is due"),
+        ({"due_amount": "100", "due_date": "2000-01-01"}, "in the past"),
+        ({"due_amount": "abc", "due_date": "2999-01-31"}, "as a number"),
+    ]:
+        with pytest.raises(BillError, match=message):
+            save(shop, items, "Asha", **kwargs)
+    assert stock_of(shop, "Tray") == 10
+    save(shop, items, "Asha", due_amount="", due_date="")           # no due: fine

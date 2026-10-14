@@ -1,4 +1,4 @@
-import sqlite3
+﻿import sqlite3
 
 from flask import current_app, g
 
@@ -39,6 +39,9 @@ CREATE TABLE IF NOT EXISTS bills (
     created_at TEXT NOT NULL,
     customer_name TEXT NOT NULL DEFAULT '',
     customer_phone TEXT NOT NULL DEFAULT '',
+    customer_location TEXT NOT NULL DEFAULT '',
+    due_amount INTEGER NOT NULL DEFAULT 0,  -- paise still to be paid (0 = paid in full)
+    due_date TEXT NOT NULL DEFAULT '',      -- when the rest is expected (YYYY-MM-DD)
     place_of_sale TEXT NOT NULL DEFAULT '',
     order_source TEXT NOT NULL DEFAULT '',  -- Store (walk-in), Stall, Website or Other: ...
     whole_discount_pct REAL NOT NULL DEFAULT 0,
@@ -64,7 +67,8 @@ CREATE TABLE IF NOT EXISTS payments (  -- a bill has one or more; together they 
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     bill_id INTEGER NOT NULL REFERENCES bills(id),
     mode TEXT NOT NULL,                -- UPI, Cash, Net-banking or Other: ...
-    amount INTEGER NOT NULL            -- paise
+    amount INTEGER NOT NULL,           -- paise
+    paid_at TEXT NOT NULL DEFAULT ''   -- set only when a due amount was received later
 );
 """
 
@@ -89,9 +93,15 @@ def init_db():
     db.executescript(SCHEMA)
     # Databases made before a column existed get it added here.
     columns = [row["name"] for row in db.execute("PRAGMA table_info(bills)")]
-    for name in ("customer_phone", "order_source"):
+    added = {"customer_phone": "TEXT", "order_source": "TEXT", "customer_location": "TEXT",
+             "due_date": "TEXT", "due_amount": "INTEGER"}
+    for name, kind in added.items():
         if name not in columns:
-            db.execute(f"ALTER TABLE bills ADD COLUMN {name} TEXT NOT NULL DEFAULT ''")
+            default = "0" if kind == "INTEGER" else "''"
+            db.execute(f"ALTER TABLE bills ADD COLUMN {name} {kind} NOT NULL DEFAULT {default}")
+    payment_columns = [row["name"] for row in db.execute("PRAGMA table_info(payments)")]
+    if "paid_at" not in payment_columns:
+        db.execute("ALTER TABLE payments ADD COLUMN paid_at TEXT NOT NULL DEFAULT ''")
     db.commit()
 
 
@@ -99,3 +109,4 @@ def init_app(app):
     app.teardown_appcontext(close_db)
     with app.app_context():
         init_db()
+

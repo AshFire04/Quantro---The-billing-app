@@ -1,4 +1,4 @@
-// The Billing screen. The bill lives only in this page until Save is pressed.
+﻿// The Billing screen. The bill lives only in this page until Save is pressed.
 // The server recalculates everything on Save, so the numbers here are a preview.
 
 const products = JSON.parse(document.getElementById("products-data").textContent);
@@ -101,7 +101,7 @@ function renderBill() {
   $("save").disabled = ids.length === 0;
 
   $("error").hidden = true;
-  if (splitting) renderSplitLeft();     // the total changed, so "still to assign" changes too
+  renderPayNow();                       // the total changed, so what is paid now changes too
 }
 
 // ---- Search box: typing filters; Enter adds an exact code, or the only match ----
@@ -120,6 +120,8 @@ $("clear").onclick = () => {
   for (const id of Object.keys(bill)) delete bill[id];
   $("customer").value = "";
   $("phone").value = "";
+  $("location").value = "";
+  if (dueOpen) $("due-toggle").onclick();   // closes the due panel and empties it
   renderBill();
 };
 
@@ -139,14 +141,48 @@ function billTotal() {
   return Object.entries(bill).reduce((sum, [id, qty]) => sum + byId[id].price * qty, 0);
 }
 
+// ---- Payment due: part of the bill the customer will pay later ----
+
+let dueOpen = false;
+
+function dueNow() {
+  if (!dueOpen) return 0;
+  const due = Math.round((parseFloat($("due-amount").value) || 0) * 100);
+  return Math.min(Math.max(due, 0), billTotal());
+}
+
+function payNow() { return billTotal() - dueNow(); }
+
+function renderPayNow() {
+  const due = dueNow();
+  $("pay-now").hidden = !dueOpen || billTotal() === 0;
+  $("pay-now").textContent = due === billTotal() && due > 0
+    ? "Nothing is paid now; the whole bill is due."
+    : `Paid now: ${rupees(payNow())} · Due later: ${rupees(due)}`;
+  // With nothing paid now there is no payment mode to choose.
+  $("single-payment").hidden = splitting || (due > 0 && payNow() === 0);
+  $("split-payment").hidden = !splitting || (due > 0 && payNow() === 0);
+  if (splitting) renderSplitLeft();
+}
+
+$("due-toggle").onclick = () => {
+  dueOpen = !dueOpen;
+  $("due-panel").hidden = !dueOpen;
+  $("due-toggle").textContent = dueOpen ? "No due" : "Add due";
+  if (!dueOpen) { $("due-amount").value = ""; $("due-date").value = ""; }
+  else $("due-date").min = new Date().toLocaleDateString("en-CA");   // today, as YYYY-MM-DD
+  renderPayNow();
+};
+$("due-amount").oninput = renderPayNow;
+
 function splitPaid() {
   // Amounts are typed in rupees; work in whole paise to avoid rounding drift.
   return splitRows.reduce((sum, r) => sum + Math.round((parseFloat(r.amount) || 0) * 100), 0);
 }
 
 function renderSplitLeft() {
-  const left = billTotal() - splitPaid();
-  $("split-left").textContent = left === 0 ? "Payments match the bill total."
+  const left = payNow() - splitPaid();
+  $("split-left").textContent = left === 0 ? "Payments match the amount being paid now."
     : left > 0 ? `Still to assign: ${rupees(left)}` : `Over by ${rupees(-left)}`;
 }
 
@@ -181,12 +217,12 @@ $("split-toggle").onclick = () => {
     renderSplit();
   }
   $("split-toggle").textContent = splitting ? "No split" : "Split";
-  $("split-payment").hidden = !splitting;
-  $("single-payment").hidden = splitting;
+  renderPayNow();
 };
 $("split-add").onclick = () => { splitRows.push({ mode: "", other: "", amount: "" }); renderSplit(); };
 
 function paymentsForServer() {
+  if (dueNow() > 0 && payNow() === 0) return [];
   if (!splitting) {
     return [{ mode: $("pay-mode").value, other: $("pay-other").value }];   // no amount = whole bill
   }
@@ -203,6 +239,9 @@ $("save").onclick = async () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ items, customer: $("customer").value, phone: $("phone").value,
+                             location: $("location").value,
+                             due_amount: dueOpen ? $("due-amount").value : "",
+                             due_date: dueOpen ? $("due-date").value : "",
                              place_of_sale: $("place").value,
                              order_source: $("source").value, order_source_other: $("source-other").value,
                              payments: paymentsForServer() }),
@@ -220,3 +259,4 @@ $("save").onclick = async () => {
 renderCategories();
 renderCards();
 renderBill();
+

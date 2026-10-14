@@ -39,7 +39,7 @@ Build mode: learn
   Learner check: Open Inventory and note a product's stock, make a bill with it, save, and go back to Inventory to see the drop and any Low warning.
   Commit: `Add billing that updates stock on save`
 
-- [ ] **4. You can find old bills in Past bills**
+- [x] **4. You can find old bills in Past bills**
   Becomes usable: A newest-first list of bills with search by number or customer, and a full view of each bill.
   Why now: It completes the "previous bill can be found again" part of the demo flow.
   PRD ref: `prd.md > Past bills`
@@ -125,4 +125,5 @@ Activity mode: [not started]
 - Open issues settled by the learner — tax line dropped (prices include GST); shipping & handling kept as an optional amount because it varies by location and mode of transport; discount order confirmed as item discount first, then whole-bill discount.
 - Slice 3 additions requested by the learner: customer name required and an optional phone number; an "Order came through" dropdown (Store (walk-in), Stall, Website, Other typed); a payment mode dropdown (UPI, Cash, Net-banking, Other typed) with a Split button for several payments (mode and amount each) that must add up to the bill total, stored in a new payments table.
 - Slice 3: the "Stock after saving this bill" preview box was removed at the learner's request; Inventory shows the new stock after saving.
+- Slice 4 additions requested by the learner: optional customer location on a bill; part payments with an amount due and a due date (the simple version of "pending payments", moved in from Deferred); a "Mark payment received" button on the bill page that records the received amount as a payment with the mode chosen; Past bills filters for order source, payment mode, has payment due and a date range (a status filter was added and then removed at the learner's request).
 
