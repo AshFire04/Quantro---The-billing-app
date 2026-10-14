@@ -1,4 +1,4 @@
-﻿"""Money is stored as whole paise (integers) so rounding never drifts."""
+"""Money is stored as whole paise (integers) so rounding never drifts."""
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 

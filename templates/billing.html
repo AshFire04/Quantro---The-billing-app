@@ -1,4 +1,4 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 {% block title %}Billing{% endblock %}
 {% block main_class %}page wide{% endblock %}
 {% block content %}
@@ -18,58 +18,56 @@
 </div>
 {% endif %}
 <div class="billing">
-  <section class="items">
-    <input id="search" class="search" placeholder="Type a code (like KA36) or search by name" aria-label="Search items" autocomplete="off">
+  <section aria-label="Items">
+    <input id="search" class="search" type="search" placeholder="Type a code (like KA36) or search by name" aria-label="Search items" autocomplete="off">
     <div id="categories" class="filters wrap"></div>
-    <div id="cards" class="cards"></div>
-    <p id="no-match" class="muted" hidden>No products match.</p>
+    <div id="list" class="item-list"></div>
   </section>
 
-  <aside class="card bill-panel">
-    <div class="page-head">
-      <h2>Bill #{{ next_number }}{% if editing %} <small class="muted">replaces #{{ editing.invoice_number }}</small>{% endif %}</h2>
+  <section class="card bill-panel" aria-label="Bill">
+    <div class="bill-head">
+      <h1>Bill #{{ next_number }}{% if editing %} <small class="muted">replaces #{{ editing.invoice_number }}</small>{% endif %}</h1>
       <button type="button" id="clear" class="btn">Clear</button>
     </div>
-    <label class="field">Customer Name*
-      <input id="customer" placeholder="Customer Name" required>
-    </label>
-    <label class="field">Phone number (optional)
-      <input id="phone" type="tel" placeholder="e.g. 98765 43210">
-    </label>
-    <label class="field">Customer location (optional)
-      <input id="location" placeholder="e.g. Indiranagar, Bengaluru">
-    </label>
-    <label class="field">Place of sale (state or country)
-      <input id="place" placeholder="e.g. Karnataka">
-    </label>
-    <label class="field">Order came through
-      <select id="source">
-        <option value="">Choose…</option>
-        {% for s in order_sources %}<option>{{ s }}</option>{% endfor %}
-      </select>
-    </label>
-    <input id="source-other" class="other-input" placeholder="Type the order source" hidden>
+
+    <div class="bill-form">
+      <label class="f">Customer Name*
+        <input id="customer" placeholder="Customer Name" required>
+      </label>
+      <label class="f">Phone number (optional)
+        <input id="phone" type="tel" placeholder="e.g. 98765 43210">
+      </label>
+      <label class="f">Customer location (optional)
+        <input id="location" placeholder="e.g. Indiranagar, Bengaluru">
+      </label>
+      <label class="f">Place of sale (state or country)
+        <input id="place" placeholder="e.g. Karnataka">
+      </label>
+      <div class="f">
+        <label for="source">Order came through</label>
+        <select id="source">
+          <option value="">Choose…</option>
+          {% for s in order_sources %}<option>{{ s }}</option>{% endfor %}
+        </select>
+        <input id="source-other" class="other-input" placeholder="Type the order source" hidden>
+      </div>
+    </div>
 
     <div id="lines" class="lines"></div>
-    <p id="empty-bill" class="muted">Tap an item to add it to the bill.</p>
 
-    <div id="offers-box" class="offers-box" hidden>
-      <strong>Offers</strong>
+    <div id="offers-box" class="offers" hidden>
+      <b>Offers</b>
       <div id="offers-list"></div>
     </div>
 
-    <div class="totals">
-      <div class="sum-row"><span>Subtotal</span><span id="subtotal" class="mono">₹0</span></div>
-      <div class="sum-row">
-        <label for="whole-discount">Whole-bill discount (%)</label>
-        <input id="whole-discount" class="mini-input" inputmode="decimal" placeholder="0">
-        <span id="whole-off" class="mono"></span>
-      </div>
-      <div class="sum-row">
-        <label for="shipping">Shipping &amp; handling (₹, optional)</label>
-        <input id="shipping" class="mini-input" inputmode="decimal" placeholder="0">
-      </div>
-      <div class="total-row"><span>Total</span><strong id="total" class="mono big">₹0</strong></div>
+    <div class="sum">
+      <div>Subtotal</div><div class="v mono" id="subtotal">₹0</div>
+      <div id="whole-off-label" hidden>Whole-bill discount taken off</div><div class="v mono" id="whole-off" hidden></div>
+      <label for="whole-discount">Whole-bill discount (%)</label>
+      <input id="whole-discount" class="mini-input" inputmode="decimal" placeholder="0">
+      <label for="shipping">Shipping &amp; handling (₹, optional)</label>
+      <input id="shipping" class="mini-input" inputmode="decimal" placeholder="0">
+      <div class="sum-total"><span>Total</span><span class="mono" id="total">₹0</span></div>
     </div>
 
     <div class="payment">
@@ -95,10 +93,10 @@
         <button type="button" id="due-toggle" class="btn small">Add due</button>
       </div>
       <div id="due-panel" hidden>
-        <label class="field">Amount still to be paid (₹)
+        <label class="f">Amount still to be paid (₹)
           <input id="due-amount" inputmode="decimal" placeholder="e.g. 500">
         </label>
-        <label class="field">Date the payment is due
+        <label class="f">Date the payment is due
           <input id="due-date" type="date">
         </label>
       </div>
@@ -107,7 +105,7 @@
 
     <div id="error" class="flash" hidden></div>
     <button type="button" id="save" class="btn primary wide-btn" disabled>{% if editing %}Save changes (replaces #{{ editing.invoice_number }}){% else %}Save bill &amp; update stock{% endif %}</button>
-  </aside>
+  </section>
 </div>
 
 <script id="products-data" type="application/json">{{ products | tojson }}</script>
@@ -117,6 +115,4 @@
 <script src="{{ url_for('static', filename='js/billing.js') }}"></script>
 {% endif %}
 {% endblock %}
-
-
 

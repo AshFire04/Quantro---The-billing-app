@@ -1,9 +1,9 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 {% block title %}Bill #{{ bill.invoice_number }}{% endblock %}
 {% block content %}
 <div class="page-head">
-  <h1>Bill #{{ bill.invoice_number }}
-    {% if bill.status != 'Saved' %}<span class="badge out">{{ bill.status }}</span>{% endif %}</h1>
+  {% set label, kind = bill_status(bill) %}
+  <h1>Bill #{{ bill.invoice_number }} <span class="badge status-{{ kind }}">{{ label }}</span></h1>
   <div class="actions">
     {% if bill.status == 'Saved' and not bill.replaced_by %}
     <a class="btn" href="{{ url_for('billing.edit', bill_id=bill.id) }}">Edit</a>

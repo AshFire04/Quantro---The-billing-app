@@ -1,4 +1,4 @@
-﻿from flask import (Blueprint, flash, g, jsonify, redirect, render_template, request,
+from flask import (Blueprint, flash, g, jsonify, redirect, render_template, request,
                    url_for)
 
 from ..auth import login_required
@@ -22,7 +22,7 @@ def active_offers():
 
 def shop_products():
     return [dict(p) for p in get_db().execute(
-        "SELECT id, code, name, category, price, stock FROM products "
+        "SELECT id, code, name, category, price, stock, low_stock_level FROM products "
         "WHERE shop_id = ? AND active = 1 ORDER BY name COLLATE NOCASE",
         (g.shop["id"],)).fetchall()]
 
@@ -124,4 +124,5 @@ def save():
     except BillError as e:
         return jsonify(error=str(e)), 400
     return jsonify(url=url_for("bills.view", bill_id=bill_id, saved=1))
+
 

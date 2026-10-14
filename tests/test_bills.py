@@ -1,4 +1,4 @@
-﻿from tests.test_auth import create
+from tests.test_auth import create
 from tests.test_inventory import add
 
 CASH = [{"mode": "Cash"}]
@@ -24,7 +24,7 @@ def test_list_is_newest_first_with_status_and_amount(client):
     make_bill(client, "Ravi", qty=2)
     page = client.get("/bills").data.decode()
     assert page.index("Ravi") < page.index("Asha")          # newest first
-    assert "₹900.00" in page and "₹450.00" in page and "Saved" in page
+    assert "₹900.00" in page and "₹450.00" in page and "Paid" in page
 
 
 def test_search_by_number_and_by_customer(client):
@@ -154,3 +154,36 @@ def test_past_bills_shows_the_place_of_sale(client):
             "place_of_sale": place, "order_source": "Website", "payments": [{"mode": "UPI"}]})
     page = client.get("/bills").data.decode()
     assert "Place of sale" in page and "Karnataka" in page and "Singapore" in page
+
+
+def test_status_shows_paid_payment_due_or_cancelled(client):
+    import re
+    create(client)
+    add(client, name="Tray", price="450", stock="20")
+
+    def bill(customer, **extra):
+        body = {"items": [{"product_id": 1, "quantity": 1}], "customer": customer,
+                "order_source": "Stall", "payments": [{"mode": "Cash"}]}
+        body.update(extra)
+        assert client.post("/billing/save", json=body).status_code == 200
+
+    bill("Paid Pat")                                              # bill 1
+    bill("Due Dan", due_amount="100", due_date="2999-01-31")      # bill 2
+    bill("Cancelled Cal")                                         # bill 3
+    client.post("/bills/3/cancel")
+
+    def badge(customer):
+        page = client.get("/bills").data.decode()
+        row = page[page.index(customer):]
+        return re.search(r'<span class="badge status-(\w+)">([^<]+)</span>', row).groups()
+
+    assert badge("Paid Pat") == ("paid", "Paid")
+    assert badge("Due Dan") == ("due", "Payment due")
+    assert badge("Cancelled Cal") == ("cancelled", "Cancelled")
+    # On the bill page too.
+    assert 'badge status-paid">Paid' in client.get("/bills/1").data.decode()
+    assert 'badge status-due">Payment due' in client.get("/bills/2").data.decode()
+    assert 'badge status-cancelled">Cancelled' in client.get("/bills/3").data.decode()
+    # Once the due amount is received, the bill turns Paid.
+    client.post("/bills/2/payment-received", data={"mode": "UPI"})
+    assert badge("Due Dan") == ("paid", "Paid")

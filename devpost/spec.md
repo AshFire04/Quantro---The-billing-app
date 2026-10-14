@@ -1,4 +1,4 @@
-﻿---
+---
 doc: spec
 status: approved
 ---
@@ -53,7 +53,7 @@ Unverified, to check first in the build: the current Flask version and that it i
 
 ## Look and Feel
 Carried forward from `prd.md > Look and Feel`.
-- **Palette:** the mock-up teal/green on off-white is a **placeholder**. All colours are CSS variables in one file (`static/css/theme.css`), so the final palette is a one-file change. The learner will choose it later.
+- **Palette:** the learner chose the palette in `Colour.jpeg` on 14 Oct 2026: #3368A0 (blue, buttons and top bar), #66A3BF (soft blue accent), #C8DFDB (light mint tint) and #F2EFE7 (cream background). All colours are CSS variables in one file (`static/css/theme.css`), so it can still be changed there.
 - **Type:** a clean, friendly sans-serif for text and a monospace face for numbers (amounts, quantities, invoice numbers), as in the mock-ups. System fonts first, so it works offline.
 - **Density:** spacious, with large tap targets (buttons at least about 44px high) for phone and for people with little technology experience.
 - **Tone of copy:** short and plain ("Save bill & update stock", "No products yet").
@@ -208,5 +208,6 @@ Deferred integration: **Shopify stock sync** (`prd.md > Deferred From the POC`).
 - **Discount order** — line discounts first, then the whole-bill discount, with the offer minimum judged after line discounts. Confirm that this matches how she calculates by hand (an example bill would settle it).
 - **Final colour theme and logo** — can wait for the build (`prd.md > Open Questions`).
 - **Flask on Python 3.14** — check at the start of the build.
+
 
 

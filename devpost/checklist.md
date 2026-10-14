@@ -1,4 +1,4 @@
-﻿---
+---
 doc: checklist
 status: approved
 ---
@@ -139,4 +139,5 @@ Activity mode: [not started]
 - Slice 6 additions requested by the learner: a plain **Cancel bill** button (restores stock, marks the bill Cancelled, no replacement), since returning everything otherwise needed a replacement bill; a **Place of sale** column in Past bills.
 - New slice 9 (Home page) added at the learner's request on 14 Oct 2026; the phone layout, sample data and README slice moved to 10. The Home page is modelled on mock-up A with a pie chart; the learner chose to place it near the end. This reverses the earlier decision to leave mock-up A out of the proof of concept; `prd.md`, `scope.md` and `spec.md` were updated to match.
 - Slice 7: offers can be ticked on a bill; a discount typed by hand always beats an offer (even 0), the best matching offer wins, and a whole-bill offer is judged on the bill after item discounts. Bills store the names of offers applied as text so deleting an offer never changes an old bill. QR images are checked by their real file type, limited to 1 MB and 6 per shop, and served only to the shop that owns them.
+- Learner-requested restyle (14 Oct 2026): the colour palette from `Colour.jpeg`; the Settings page renamed **Shop Details** (menu and page title); the Billing screen restyled to follow the learner's `Billing.html` mock-up (item list as rows with live stock left, a 3-column customer form, tinted offers box, summary grid), keeping every existing feature. Dark mode from the mock-up was not added.
 

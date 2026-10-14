@@ -1,4 +1,4 @@
-﻿from flask import (Blueprint, abort, flash, g, redirect, render_template, request,
+from flask import (Blueprint, abort, flash, g, redirect, render_template, request,
                    url_for)
 
 from ..auth import login_required

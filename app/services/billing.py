@@ -1,4 +1,4 @@
-﻿"""The money and stock rules. Plain Python, no Flask in here, so tests can call it directly.
+"""The money and stock rules. Plain Python, no Flask in here, so tests can call it directly.
 
 All amounts are whole paise. The browser's numbers are never trusted: everything is
 recalculated here from the products in the database.
@@ -309,6 +309,17 @@ def cancel_bill(db, shop_id, bill_id):
     with db:
         put_old_items_back(db, shop_id, bill_id)
         db.execute("UPDATE bills SET status = 'Cancelled' WHERE id = ?", (bill_id,))
+
+def bill_status(bill):
+    """The status the owner sees on a bill, and the colour class for it.
+
+    Cancelled wins; otherwise a bill with money still due is 'Payment due', else 'Paid'.
+    """
+    if bill["status"] == "Cancelled":
+        return "Cancelled", "cancelled"
+    if bill["due_amount"] > 0:
+        return "Payment due", "due"
+    return "Paid", "paid"
 
 def receive_due(db, shop_id, bill_id, mode, other=""):
     """The customer has paid what was due. Records it as a payment and clears the due amount."""

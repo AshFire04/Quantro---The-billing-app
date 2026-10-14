@@ -1,4 +1,4 @@
-﻿import pytest
+import pytest
 
 from app.db import get_db
 from app.services.billing import BillError, price_bill, save_bill

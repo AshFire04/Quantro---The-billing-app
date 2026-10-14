@@ -1,4 +1,4 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 {% block title %}Past bills{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -53,7 +53,8 @@
           <td>{{ b.place_of_sale }}</td>
           <td class="num mono">{{ b.total | rupees }}</td>
           <td class="mono">{% if b.due_amount %}{{ b.due_amount | rupees }} by {{ b.due_date | fdate }}{% endif %}</td>
-          <td><span class="badge {{ 'out' if b.status == 'Cancelled' }}">{{ b.status }}</span>
+          {% set label, kind = bill_status(b) %}
+          <td><span class="badge status-{{ kind }}">{{ label }}</span>
             {% if b.replaced_by_number %}<span class="muted">replaced by #{{ b.replaced_by_number }}</span>{% endif %}</td>
         </tr>
       {% endfor %}

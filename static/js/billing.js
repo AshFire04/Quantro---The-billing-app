@@ -1,4 +1,4 @@
-﻿// The Billing screen. The bill lives only in this page until Save is pressed.
+// The Billing screen. The bill lives only in this page until Save is pressed.
 // The server recalculates everything on Save, so the numbers here are a preview.
 
 const products = JSON.parse(document.getElementById("products-data").textContent);
@@ -26,6 +26,7 @@ function renderCategories() {
     const b = document.createElement("button");
     b.type = "button";
     b.className = "chip" + (name === activeCategory ? " active" : "");
+    b.setAttribute("aria-pressed", name === activeCategory);
     b.textContent = name;
     b.onclick = () => { activeCategory = name; renderCategories(); renderCards(); };
     $("categories").append(b);
@@ -34,26 +35,28 @@ function renderCategories() {
 
 function renderCards() {
   const shown = visibleProducts();
-  $("cards").innerHTML = "";
-  $("no-match").hidden = shown.length > 0;
+  $("list").innerHTML = "";
+  if (shown.length === 0) {
+    $("list").innerHTML = `<div class="empty-note">No items match. Try a different code or name.</div>`;
+    return;
+  }
   for (const p of shown) {
-    const out = p.stock <= 0;
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "card item-card";
-    b.disabled = out;
-    const left = out ? "Out of stock" : `${p.stock} in stock`;
-    b.innerHTML = `<strong></strong><span class="muted code"></span>
-      <span class="item-foot"><span class="mono price"></span><span class="stock-note ${out ? "out" : ""}"></span></span>`;
-    b.querySelector("strong").textContent = p.name;
-    b.querySelector(".code").textContent = p.code || "";
-    b.querySelector(".price").textContent = rupees(p.price);
-    b.querySelector(".stock-note").textContent = left;
-    b.onclick = () => addItem(p.id);
-    $("cards").append(b);
+    const left = p.stock - (bill[p.id] || 0);              // what would still be on the shelf
+    const state = left <= 0 ? "out" : left <= p.low_stock_level ? "low" : "";
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = "item-row";
+    row.disabled = left <= 0;
+    row.innerHTML = `<span class="info"><span class="name"></span><span class="code"></span></span>
+      <span class="mono price"></span><span class="stock ${state}"></span>`;
+    row.querySelector(".name").textContent = p.name;
+    row.querySelector(".code").textContent = p.code || "";
+    row.querySelector(".price").textContent = rupees(p.price);
+    row.querySelector(".stock").textContent = left <= 0 ? "Out of stock" : `${left} in stock`;
+    row.onclick = () => addItem(p.id);
+    $("list").append(row);
   }
 }
-
 // ---- The bill (right side) ----
 
 function addItem(id) {
@@ -134,22 +137,25 @@ function computeTotals() {
 function renderBill() {
   const ids = Object.keys(bill).map(Number);
   $("lines").innerHTML = "";
+  if (ids.length === 0) {
+    $("lines").innerHTML = `<div class="lines-empty">Tap an item on the left to add it to the bill.</div>`;
+  }
   for (const id of ids) {
     const p = byId[id], qty = bill[id];
     const row = document.createElement("div");
     row.className = "line";
-    row.innerHTML = `<div class="line-name"><strong></strong><span class="muted mono each"></span></div>
+    row.innerHTML = `<div class="line-name"><span class="n"></span><span class="c"></span></div>
       <div class="qty">
-        <button type="button" class="btn small minus" aria-label="One less">−</button>
+        <button type="button" class="minus" aria-label="One less">−</button>
         <span class="mono qty-num"></span>
-        <button type="button" class="btn small plus" aria-label="One more">+</button>
+        <button type="button" class="plus" aria-label="One more">+</button>
       </div>
-      <span class="mono amount"></span>
+      <div class="mono amt"></div>
       <label class="line-discount">Discount %
         <input class="mini-input" inputmode="decimal" placeholder="0">
       </label>`;
-    row.querySelector("strong").textContent = p.name;
-    row.querySelector(".each").textContent = `${rupees(p.price)} each`;
+    row.querySelector(".n").textContent = p.name;
+    row.querySelector(".c").textContent = `${p.code ? p.code + " · " : ""}${rupees(p.price)} each`;
     row.querySelector(".qty-num").textContent = qty;
     row.querySelector(".minus").onclick = () => changeQty(id, -1);
     const plus = row.querySelector(".plus");
@@ -159,21 +165,20 @@ function renderBill() {
     box.value = discounts[id] || "";
     box.oninput = () => { discounts[id] = box.value; refreshTotals(); };
     lineInputs[id] = box;
-    lineCells[id] = row.querySelector(".amount");
+    lineCells[id] = row.querySelector(".amt");
     $("lines").append(row);
   }
-  $("empty-bill").hidden = ids.length > 0;
   $("save").disabled = ids.length === 0;
   $("error").hidden = true;
+  renderCards();                        // the stock left on each item changes as the bill changes
   refreshTotals();
 }
-
 // Updates every number on the right without rebuilding the rows (so typing isn't interrupted).
 function refreshTotals() {
   for (const id of Object.keys(bill)) {
     const original = byId[id].price * bill[id], now = lineAmount(id);
     lineCells[id].innerHTML = now === original ? rupees(now)
-      : `<s class="muted">${rupees(original)}</s> ${rupees(now)}`;   // original, then discounted
+      : `<s>${rupees(original)}</s>${rupees(now)}`;   // original, then discounted
   }
   // A blank discount box shows the offer percentage that would apply to it.
   for (const id of Object.keys(bill)) {
@@ -185,6 +190,7 @@ function refreshTotals() {
   $("whole-discount").placeholder = wholeOffer ? `${wholeOffer.pct} (${wholeOffer.name})` : "0";
   $("subtotal").textContent = rupees(t.subtotal);
   $("whole-off").textContent = t.wholeOff ? "−" + rupees(t.wholeOff) : "";
+  $("whole-off").hidden = $("whole-off-label").hidden = !t.wholeOff;
   $("total").textContent = rupees(t.total);
   renderPayNow();                       // the total changed, so what is paid now changes too
 }
@@ -410,6 +416,7 @@ renderOffers();
 renderCategories();
 renderCards();
 renderBill();
+
 
 
 

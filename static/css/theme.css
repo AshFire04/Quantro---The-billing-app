@@ -1,16 +1,19 @@
-/* All colours live here. Placeholder palette; change these to re-theme the app. */
+/* All colours live here. Palette from Colour.jpeg: #3368A0, #66A3BF, #C8DFDB, #F2EFE7. */
 :root {
-  --color-primary: #0f6b5c;
-  --color-primary-dark: #0a4f44;
+  --color-primary: #3368A0;        /* buttons, top bar, links */
+  --color-primary-dark: #27507d;   /* hover, and text on the light tint */
   --color-on-primary: #ffffff;
-  --color-bg: #faf8f3;
+  --color-secondary: #66A3BF;      /* soft accent: focus rings, hover borders */
+  --color-bg: #F2EFE7;             /* page background */
   --color-surface: #ffffff;
-  --color-text: #1f2a28;
-  --color-muted: #6b7773;
-  --color-border: #e1ddd2;
+  --color-text: #1f2933;
+  --color-muted: #5b6671;
+  --color-border: #dbd7cb;
   --color-warning: #c98a0b;
   --color-danger: #b3261e;
-  --color-ok-bg: #e3f2ee;
+  --color-ok-bg: #C8DFDB;          /* light tint: offers box, badges, success messages */
+  --color-warn-bg: #fbefd5;
+  --color-warn-text: #7a5200;
   --font-text: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-numbers: ui-monospace, "SF Mono", Consolas, monospace;
 }

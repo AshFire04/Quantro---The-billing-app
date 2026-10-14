@@ -1,4 +1,4 @@
-﻿import os
+import os
 
 from flask import Flask, redirect, url_for
 
@@ -30,6 +30,8 @@ def create_app(test_config=None):
     app.register_blueprint(bills_routes.bp)
     app.register_blueprint(settings.bp)
 
+    from .services.billing import bill_status
+    app.jinja_env.globals["bill_status"] = bill_status
     from .services.money import format_date, format_rupees
     app.jinja_env.filters["rupees"] = format_rupees
     app.jinja_env.filters["fdate"] = format_date

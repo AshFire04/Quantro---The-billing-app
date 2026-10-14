@@ -1,4 +1,4 @@
-﻿import pytest
+import pytest
 
 from app.services.billing import BillError
 from tests.test_auth import create
