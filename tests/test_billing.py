@@ -217,3 +217,101 @@ def test_due_rules(shop):
             save(shop, items, "Asha", **kwargs)
     assert stock_of(shop, "Tray") == 10
     save(shop, items, "Asha", due_amount="", due_date="")           # no due: fine
+
+
+# ---- Discounts and shipping ----------------------------------------------------------
+# Tray is ₹450 and Cushion is ₹299.50. Amounts below are worked out by hand.
+
+def total_of(shop, items, whole="0", shipping=0):
+    from decimal import Decimal
+    return price_bill(shop, 1, items, Decimal(whole), shipping)[1]
+
+
+def test_item_discount(shop):
+    lines, total = price_bill(shop, 1, [{"product_id": 1, "quantity": 2, "discount": "10"}])
+    assert lines[0]["line_amount"] == 81000        # 2 x 450 = 900, less 10% = 810
+    assert lines[0]["line_discount_pct"] == 10 and total == 81000
+
+
+def test_whole_bill_discount(shop):
+    items = [{"product_id": 1, "quantity": 2}, {"product_id": 2, "quantity": 1}]
+    assert total_of(shop, items, whole="5") == 113953   # 900 + 299.50 = 1199.50; 5% off = 1139.525 -> 1139.53
+
+
+def test_item_discount_comes_first_then_whole_bill_discount(shop):
+    # 10% off the trays (900 -> 810), cushion full price (299.50): subtotal 1109.50.
+    # 5% off the whole bill: 1109.50 x 0.95 = 1054.025 -> 1054.03
+    items = [{"product_id": 1, "quantity": 2, "discount": "10"}, {"product_id": 2, "quantity": 1}]
+    assert total_of(shop, items, whole="5") == 105403
+
+
+def test_shipping_is_added_last_and_not_discounted(shop):
+    items = [{"product_id": 1, "quantity": 2, "discount": "10"}]    # 810
+    assert total_of(shop, items, whole="50", shipping=8000) == 40500 + 8000   # 405 + 80 shipping
+
+
+def test_rounding_is_half_up_to_the_paisa(shop):
+    # ₹299.50 less 12.5% = 262.058... paise-exact: 29950 x 0.875 = 26206.25 -> 26206
+    assert total_of(shop, [{"product_id": 2, "quantity": 1, "discount": "12.5"}]) == 26206
+    # exactly half a paisa rounds up: 45000 x 0.99995 would need 3 decimals, so use 29950 x 0.5 = 14975
+    assert total_of(shop, [{"product_id": 2, "quantity": 1, "discount": "50"}]) == 14975
+    assert total_of(shop, [{"product_id": 2, "quantity": 1, "discount": "99.99"}]) == 3   # 2.995 -> 3
+
+
+def test_one_hundred_percent_off_is_allowed(shop):
+    assert total_of(shop, [{"product_id": 1, "quantity": 1, "discount": "100"}]) == 0
+
+
+@pytest.mark.parametrize("bad", ["-1", "101", "abc", "10.555", "nan"])
+def test_bad_item_discounts_are_refused(shop, bad):
+    with pytest.raises(BillError, match="discount"):
+        price_bill(shop, 1, [{"product_id": 1, "quantity": 1, "discount": bad}])
+
+
+def test_saving_stores_the_discounts_and_shipping(shop):
+    bill_id = save(shop, [{"product_id": 1, "quantity": 2, "discount": "10"},
+                          {"product_id": 2, "quantity": 1}], "Asha",
+                   whole_discount="5", shipping="80")
+    bill = shop.execute("SELECT * FROM bills WHERE id = ?", (bill_id,)).fetchone()
+    assert (bill["whole_discount_pct"], bill["shipping"]) == (5, 8000)
+    assert bill["total"] == 105403 + 8000
+    lines = shop.execute("SELECT line_discount_pct, line_amount FROM bill_lines "
+                         "WHERE bill_id = ? ORDER BY id", (bill_id,)).fetchall()
+    assert [tuple(l) for l in lines] == [(10, 81000), (0, 29950)]
+    assert shop.execute("SELECT amount FROM payments").fetchone()[0] == 105403 + 8000
+
+
+@pytest.mark.parametrize("kwargs, message", [
+    ({"whole_discount": "150"}, "between 0 and 100"),
+    ({"whole_discount": "x"}, "must be a number"),
+    ({"shipping": "-5"}, "shipping"),
+    ({"shipping": "abc"}, "shipping"),
+])
+def test_bad_whole_discount_or_shipping_is_refused(shop, kwargs, message):
+    with pytest.raises(BillError, match=message):
+        save(shop, [{"product_id": 1, "quantity": 1}], "Asha", **kwargs)
+    assert stock_of(shop, "Tray") == 10
+
+
+def test_due_and_split_use_the_discounted_total(shop):
+    items = [{"product_id": 1, "quantity": 2, "discount": "10"}]    # 810
+    save(shop, items, "Asha", whole_discount="10", due_amount="100", due_date="2999-01-31",
+         payments=[{"mode": "Cash", "amount": "300"}, {"mode": "UPI", "amount": "329"}])  # 729 - 100
+
+
+def test_discounts_through_the_website_and_on_the_saved_bill(client):
+    create(client)
+    add(client, name="Tray", price="450", stock="10")
+    res = client.post("/billing/save", json={
+        "items": [{"product_id": 1, "quantity": 2, "discount": "10"}], "customer": "Asha",
+        "order_source": "Stall", "payments": CASH, "whole_discount": "5", "shipping": "80"})
+    assert res.status_code == 200
+    page = client.get(res.get_json()["url"]).data.decode()
+    assert "₹900.00" in page and "₹810.00" in page and "10% off" in page   # original, then discounted
+    assert "Whole-bill discount (5%)" in page and "−₹40.50" in page
+    assert "Shipping &amp; handling" in page and "₹80.00" in page
+    assert "₹849.50" in page                                               # 810 - 40.50 + 80
+    bad = client.post("/billing/save", json={
+        "items": [{"product_id": 1, "quantity": 1, "discount": "250"}], "customer": "Asha",
+        "order_source": "Stall", "payments": CASH})
+    assert bad.status_code == 400 and "between 0 and 100" in bad.get_json()["error"]

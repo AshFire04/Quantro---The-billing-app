@@ -48,10 +48,10 @@
       {% for b in bills %}
         <tr>
           <td class="mono"><a href="{{ url_for('bills.view', bill_id=b.id) }}">#{{ b.invoice_number }}</a></td>
-          <td>{{ b.created_at.replace('T', ' ')[:16] }}</td>
+          <td>{{ b.created_at | fdate }}</td>
           <td>{{ b.customer_name }}</td>
           <td class="num mono">{{ b.total | rupees }}</td>
-          <td class="mono">{% if b.due_amount %}{{ b.due_amount | rupees }} by {{ b.due_date }}{% endif %}</td>
+          <td class="mono">{% if b.due_amount %}{{ b.due_amount | rupees }} by {{ b.due_date | fdate }}{% endif %}</td>
           <td><span class="badge {{ 'out' if b.status == 'Cancelled' }}">{{ b.status }}</span></td>
         </tr>
       {% endfor %}
@@ -63,4 +63,5 @@
   {% endif %}
 {% endif %}
 {% endblock %}
+
 

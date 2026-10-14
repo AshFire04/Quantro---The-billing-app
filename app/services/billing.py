@@ -1,11 +1,12 @@
-"""The money and stock rules. Plain Python, no Flask in here, so tests can call it directly.
+﻿"""The money and stock rules. Plain Python, no Flask in here, so tests can call it directly.
 
 All amounts are whole paise. The browser's numbers are never trusted: everything is
 recalculated here from the products in the database.
 """
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
 
-from .money import format_rupees, rupees_to_paise
+from .money import format_rupees, rupees_to_paise, take_percent_off
 
 PAYMENT_MODES = ["UPI", "Cash", "Net-banking", "Other"]
 ORDER_SOURCES = ["Store (walk-in)", "Stall", "Website", "Other"]
@@ -26,6 +27,32 @@ def clean_choice(value, other, allowed, what):
             raise BillError(f"Please type the {what} for 'Other'")
         return f"Other: {other}"
     return value
+
+
+def parse_percent(value, what):
+    """A discount percentage typed on the page: 0 to 100, at most two decimal places."""
+    text = str(value if value is not None else "").strip()
+    if text == "":
+        return Decimal(0)
+    try:
+        pct = Decimal(text)
+    except InvalidOperation:
+        raise BillError(f"{what} must be a number, like 10 or 7.5")
+    if not pct.is_finite() or not 0 <= pct <= 100:
+        raise BillError(f"{what} must be between 0 and 100")
+    if pct != pct.quantize(Decimal("0.01")):
+        raise BillError(f"{what} can have at most two decimal places")
+    return pct
+
+
+def parse_shipping(value):
+    """The optional shipping & handling amount, in paise."""
+    if str(value if value is not None else "").strip() == "":
+        return 0
+    try:
+        return rupees_to_paise(value)
+    except ValueError:
+        raise BillError("Enter shipping & handling as an amount, like 80 or 80.50")
 
 
 def check_due(due_amount, due_date, total):
@@ -79,10 +106,12 @@ def check_payments(payments, total):
     return checked
 
 
-def price_bill(db, shop_id, items):
+def price_bill(db, shop_id, items, whole_discount_pct=Decimal(0), shipping=0):
     """Work out the lines and total for a bill.
 
-    items: [{"product_id": 3, "quantity": 2}, ...]
+    items: [{"product_id": 3, "quantity": 2, "discount": "10"}, ...]  (discount is optional)
+    The order is: each item's own discount first, then the whole-bill discount on the
+    sum of those, then shipping & handling is added last.
     Returns (lines, total). Raises BillError if a product is missing or stock is short.
     """
     # The same product added twice becomes one line.
@@ -95,12 +124,16 @@ def price_bill(db, shop_id, items):
             raise BillError("Something is wrong with an item on the bill")
         if quantity < 1:
             raise BillError("Each item needs a quantity of at least 1")
-        wanted[product_id] = wanted.get(product_id, 0) + quantity
+        discount = parse_percent(item.get("discount"), "An item discount")
+        if product_id in wanted:
+            wanted[product_id][0] += quantity       # the first discount typed is kept
+        else:
+            wanted[product_id] = [quantity, discount]
     if not wanted:
         raise BillError("Add at least one item to the bill")
 
     lines = []
-    for product_id, quantity in wanted.items():
+    for product_id, (quantity, discount) in wanted.items():
         product = db.execute(
             "SELECT * FROM products WHERE id = ? AND shop_id = ? AND active = 1",
             (product_id, shop_id)).fetchone()
@@ -115,16 +148,18 @@ def price_bill(db, shop_id, items):
             "name": product["name"],
             "quantity": quantity,
             "rate": product["price"],
-            "line_discount_pct": 0,
-            "line_amount": product["price"] * quantity,
+            "line_discount_pct": float(discount),
+            "line_amount": take_percent_off(product["price"] * quantity, discount),
         })
-    total = sum(line["line_amount"] for line in lines)
+    subtotal = sum(line["line_amount"] for line in lines)
+    total = take_percent_off(subtotal, whole_discount_pct) + shipping
     return lines, total
 
 
 def save_bill(db, shop_id, items, customer_name, customer_phone="", place_of_sale="",
               order_source="", order_source_other="", payments=None,
-              customer_location="", due_amount="", due_date=""):
+              customer_location="", due_amount="", due_date="", whole_discount="",
+              shipping=""):
     """Save a bill and lower the stock, all in one go. Returns the new bill's id.
 
     If anything fails, nothing is changed: not the bill, not the invoice number, not the stock.
@@ -136,7 +171,9 @@ def save_bill(db, shop_id, items, customer_name, customer_phone="", place_of_sal
     if customer_phone and not 7 <= sum(c.isdigit() for c in customer_phone) <= 15:
         raise BillError("The phone number doesn't look right")
     source = clean_choice(order_source, order_source_other, ORDER_SOURCES, "order source")
-    lines, total = price_bill(db, shop_id, items)
+    whole_pct = parse_percent(whole_discount, "The whole-bill discount")
+    shipping_paise = parse_shipping(shipping)
+    lines, total = price_bill(db, shop_id, items, whole_pct, shipping_paise)
     due, due_on = check_due(due_amount, due_date, total)
     payments = check_payments(payments, total - due)
     try:
@@ -149,10 +186,12 @@ def save_bill(db, shop_id, items, customer_name, customer_phone="", place_of_sal
             bill_id = db.execute(
                 "INSERT INTO bills (shop_id, invoice_number, created_at, customer_name, "
                 "customer_phone, customer_location, place_of_sale, order_source, total, "
-                "due_amount, due_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "due_amount, due_date, whole_discount_pct, shipping) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (shop_id, number, datetime.now().isoformat(timespec="seconds"),
                  customer_name, customer_phone, customer_location.strip(),
-                 place_of_sale.strip(), source, total, due, due_on)).lastrowid
+                 place_of_sale.strip(), source, total, due, due_on, float(whole_pct),
+                 shipping_paise)).lastrowid
             for mode, amount in payments:
                 db.execute("INSERT INTO payments (bill_id, mode, amount) VALUES (?, ?, ?)",
                            (bill_id, mode, amount))
@@ -193,3 +232,5 @@ def receive_due(db, shop_id, bill_id, mode, other=""):
                    (bill_id, mode, bill["due_amount"],
                     datetime.now().isoformat(timespec="seconds")))
         db.execute("UPDATE bills SET due_amount = 0, due_date = '' WHERE id = ?", (bill_id,))
+
+

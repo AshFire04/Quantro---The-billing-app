@@ -1,4 +1,4 @@
-from flask import Blueprint, g, jsonify, render_template, request, url_for
+﻿from flask import Blueprint, g, jsonify, render_template, request, url_for
 
 from ..auth import login_required
 from ..db import get_db
@@ -34,7 +34,10 @@ def save():
                             payments=data.get("payments"),
                             customer_location=str(data.get("location", "")),
                             due_amount=str(data.get("due_amount", "")),
-                            due_date=str(data.get("due_date", "")))
+                            due_date=str(data.get("due_date", "")),
+                            whole_discount=data.get("whole_discount", ""),
+                            shipping=data.get("shipping", ""))
     except BillError as e:
         return jsonify(error=str(e)), 400
     return jsonify(url=url_for("bills.view", bill_id=bill_id, saved=1))
+

@@ -49,7 +49,7 @@ Build mode: learn
   Learner check: Make two bills for different customers and find each by searching.
   Commit: `Add Past bills`
 
-- [ ] **5. You can give discounts and shipping**
+- [x] **5. You can give discounts and shipping**
   Becomes usable: Per-item % and whole-bill % discounts, shipping & handling, original vs discounted amount shown, totals and stock preview updating live.
   Why now: Layers on a bill that already saves correctly. The server recalculates everything.
   PRD ref: `prd.md > Discounts and offers` (manual), `prd.md > Features and Behavior > Making a bill` (shipping)
@@ -126,4 +126,5 @@ Activity mode: [not started]
 - Slice 3 additions requested by the learner: customer name required and an optional phone number; an "Order came through" dropdown (Store (walk-in), Stall, Website, Other typed); a payment mode dropdown (UPI, Cash, Net-banking, Other typed) with a Split button for several payments (mode and amount each) that must add up to the bill total, stored in a new payments table.
 - Slice 3: the "Stock after saving this bill" preview box was removed at the learner's request; Inventory shows the new stock after saving.
 - Slice 4 additions requested by the learner: optional customer location on a bill; part payments with an amount due and a due date (the simple version of "pending payments", moved in from Deferred); a "Mark payment received" button on the bill page that records the received amount as a payment with the mode chosen; Past bills filters for order source, payment mode, has payment due and a date range (a status filter was added and then removed at the learner's request).
+- Slice 5: discounts are per item and whole bill (item first, then whole bill, shipping added last and never discounted), percentages up to 2 decimal places, amounts rounded half up to the paisa, with the browser and server maths checked against each other. Dates now show as `10 Oct 2026` without the time (learner request).
 

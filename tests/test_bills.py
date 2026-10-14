@@ -84,7 +84,7 @@ def test_filters(client):
     assert names("mode=Cash") == ["Ravi"]
     assert names("mode=Net-banking") == ["Meena"]
     assert names("due=due") == ["Ravi"]
-    assert "₹100.00 by 2999-01-31" in client.get("/bills?due=due").data.decode()
+    assert "₹100.00 by 31 Jan 2999" in client.get("/bills?due=due").data.decode()
     assert names("source=Website&mode=UPI") == ["Asha"]            # filters combine
     assert names("source=Website&mode=Cash") == []
     assert sorted(names("date_from=2000-01-01&date_to=2999-12-31")) == ["Asha", "Meena", "Ravi"]
@@ -127,3 +127,19 @@ def test_cannot_clear_another_shops_due(client):
     client.get("/logout")
     client.post("/login", data={"login": "owner@example.com", "password": "secret123"})
     assert "Payment due: ₹100.00" in client.get("/bills/1").data.decode()
+
+
+def test_dates_show_as_day_short_month_year_without_time(client):
+    from datetime import datetime
+    create(client)
+    add(client, name="Tray", price="450", stock="20")
+    client.post("/billing/save", json={
+        "items": [{"product_id": 1, "quantity": 1}], "customer": "Ravi", "order_source": "Stall",
+        "payments": [{"mode": "Cash"}], "due_amount": "100", "due_date": "2999-01-05"})
+    today = datetime.now().strftime("%d %b %Y")
+    for url in ("/bills", "/bills/1"):
+        page = client.get(url).data.decode()
+        assert today in page and "05 Jan 2999" in page
+        assert "2999-01-05" not in page and datetime.now().strftime("%Y-%m-%dT") not in page
+    client.post("/bills/1/payment-received", data={"mode": "UPI"})
+    assert f"(received {today})" in client.get("/bills/1").data.decode()

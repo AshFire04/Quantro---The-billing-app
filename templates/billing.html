@@ -45,6 +45,16 @@
     <p id="empty-bill" class="muted">Tap an item to add it to the bill.</p>
 
     <div class="totals">
+      <div class="sum-row"><span>Subtotal</span><span id="subtotal" class="mono">₹0</span></div>
+      <div class="sum-row">
+        <label for="whole-discount">Whole-bill discount (%)</label>
+        <input id="whole-discount" class="mini-input" inputmode="decimal" placeholder="0">
+        <span id="whole-off" class="mono"></span>
+      </div>
+      <div class="sum-row">
+        <label for="shipping">Shipping &amp; handling (₹, optional)</label>
+        <input id="shipping" class="mini-input" inputmode="decimal" placeholder="0">
+      </div>
       <div class="total-row"><span>Total</span><strong id="total" class="mono big">₹0</strong></div>
     </div>
 

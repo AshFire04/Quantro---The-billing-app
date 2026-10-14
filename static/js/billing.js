@@ -65,18 +65,41 @@ function addItem(id) {
 
 function changeQty(id, delta) {
   const next = (bill[id] || 0) + delta;
-  if (next <= 0) delete bill[id];
+  if (next <= 0) { delete bill[id]; delete discounts[id]; }
   else bill[id] = Math.min(next, byId[id].stock);   // can never go above stock
   renderBill();
+}
+
+// Percentages are handled as whole hundredths (12.5% -> 1250) and amounts as whole paise,
+// so the numbers here match the server exactly. The server still recalculates on Save.
+const discounts = {};         // product id -> the percentage typed for that item
+const lineCells = {};         // product id -> the amount cell on its row
+
+function hundredths(text) {
+  const n = parseFloat(text);
+  return n > 0 ? Math.min(Math.round(n * 100), 10000) : 0;
+}
+
+function takeOff(paise, hundredthsOff) {
+  return Math.floor((paise * (10000 - hundredthsOff) + 5000) / 10000);   // rounds half up
+}
+
+function lineAmount(id) {
+  return takeOff(byId[id].price * bill[id], hundredths(discounts[id]));
+}
+
+function computeTotals() {
+  const subtotal = Object.keys(bill).reduce((sum, id) => sum + lineAmount(id), 0);
+  const afterWhole = takeOff(subtotal, hundredths($("whole-discount").value));
+  const shipping = Math.max(Math.round((parseFloat($("shipping").value) || 0) * 100), 0);
+  return { subtotal, wholeOff: subtotal - afterWhole, shipping, total: afterWhole + shipping };
 }
 
 function renderBill() {
   const ids = Object.keys(bill).map(Number);
   $("lines").innerHTML = "";
-  let total = 0;
   for (const id of ids) {
-    const p = byId[id], qty = bill[id], amount = p.price * qty;
-    total += amount;
+    const p = byId[id], qty = bill[id];
     const row = document.createElement("div");
     row.className = "line";
     row.innerHTML = `<div class="line-name"><strong></strong><span class="muted mono each"></span></div>
@@ -85,25 +108,44 @@ function renderBill() {
         <span class="mono qty-num"></span>
         <button type="button" class="btn small plus" aria-label="One more">+</button>
       </div>
-      <span class="mono amount"></span>`;
+      <span class="mono amount"></span>
+      <label class="line-discount">Discount %
+        <input class="mini-input" inputmode="decimal" placeholder="0">
+      </label>`;
     row.querySelector("strong").textContent = p.name;
     row.querySelector(".each").textContent = `${rupees(p.price)} each`;
     row.querySelector(".qty-num").textContent = qty;
-    row.querySelector(".amount").textContent = rupees(amount);
     row.querySelector(".minus").onclick = () => changeQty(id, -1);
     const plus = row.querySelector(".plus");
     plus.disabled = qty >= p.stock;                  // plus stops at the stock limit
     plus.onclick = () => changeQty(id, 1);
+    const box = row.querySelector(".line-discount input");
+    box.value = discounts[id] || "";
+    box.oninput = () => { discounts[id] = box.value; refreshTotals(); };
+    lineCells[id] = row.querySelector(".amount");
     $("lines").append(row);
   }
   $("empty-bill").hidden = ids.length > 0;
-  $("total").textContent = rupees(total);
   $("save").disabled = ids.length === 0;
-
   $("error").hidden = true;
-  renderPayNow();                       // the total changed, so what is paid now changes too
+  refreshTotals();
 }
 
+// Updates every number on the right without rebuilding the rows (so typing isn't interrupted).
+function refreshTotals() {
+  for (const id of Object.keys(bill)) {
+    const original = byId[id].price * bill[id], now = lineAmount(id);
+    lineCells[id].innerHTML = now === original ? rupees(now)
+      : `<s class="muted">${rupees(original)}</s> ${rupees(now)}`;   // original, then discounted
+  }
+  const t = computeTotals();
+  $("subtotal").textContent = rupees(t.subtotal);
+  $("whole-off").textContent = t.wholeOff ? "−" + rupees(t.wholeOff) : "";
+  $("total").textContent = rupees(t.total);
+  renderPayNow();                       // the total changed, so what is paid now changes too
+}
+$("whole-discount").oninput = refreshTotals;
+$("shipping").oninput = refreshTotals;
 // ---- Search box: typing filters; Enter adds an exact code, or the only match ----
 
 $("search").addEventListener("input", renderCards);
@@ -117,7 +159,9 @@ $("search").addEventListener("keydown", e => {
 });
 
 $("clear").onclick = () => {
-  for (const id of Object.keys(bill)) delete bill[id];
+  for (const id of Object.keys(bill)) { delete bill[id]; delete discounts[id]; }
+  $("whole-discount").value = "";
+  $("shipping").value = "";
   $("customer").value = "";
   $("phone").value = "";
   $("location").value = "";
@@ -137,9 +181,7 @@ function showOther(select, input) {
 $("source").onchange = () => showOther($("source"), $("source-other"));
 $("pay-mode").onchange = () => showOther($("pay-mode"), $("pay-other"));
 
-function billTotal() {
-  return Object.entries(bill).reduce((sum, [id, qty]) => sum + byId[id].price * qty, 0);
-}
+function billTotal() { return computeTotals().total; }
 
 // ---- Payment due: part of the bill the customer will pay later ----
 
@@ -233,13 +275,15 @@ function paymentsForServer() {
 
 $("save").onclick = async () => {
   $("save").disabled = true;
-  const items = Object.entries(bill).map(([id, quantity]) => ({ product_id: Number(id), quantity }));
+  const items = Object.entries(bill).map(([id, quantity]) =>
+    ({ product_id: Number(id), quantity, discount: discounts[id] || "" }));
   try {
     const res = await fetch("/billing/save", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ items, customer: $("customer").value, phone: $("phone").value,
                              location: $("location").value,
+                             whole_discount: $("whole-discount").value, shipping: $("shipping").value,
                              due_amount: dueOpen ? $("due-amount").value : "",
                              due_date: dueOpen ? $("due-date").value : "",
                              place_of_sale: $("place").value,
@@ -259,4 +303,5 @@ $("save").onclick = async () => {
 renderCategories();
 renderCards();
 renderBill();
+
 

@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 {% block title %}Bill #{{ bill.invoice_number }}{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -13,7 +13,7 @@
 
 <div class="card">
   <p class="muted">
-    {{ bill.created_at.replace('T', ' ') }}
+    {{ bill.created_at | fdate }}
     · Customer: {{ bill.customer_name }}{% if bill.customer_phone %} ({{ bill.customer_phone }}){% endif %}{% if bill.customer_location %}, {{ bill.customer_location }}{% endif %}
     {% if bill.place_of_sale %}· Place of sale: {{ bill.place_of_sale }}{% endif %}
     {% if bill.order_source %}· Order via: {{ bill.order_source }}{% endif %}
@@ -30,20 +30,37 @@
           <td>{{ l.name }}</td>
           <td class="num mono">{{ l.quantity }}</td>
           <td class="num mono">{{ l.rate | rupees }}</td>
-          <td class="num mono">{{ l.line_amount | rupees }}</td>
+          <td class="num mono">
+            {% if l.line_discount_pct %}
+              <s class="muted">{{ (l.rate * l.quantity) | rupees }}</s><br>
+              {{ l.line_amount | rupees }} <span class="muted">({{ "%g" | format(l.line_discount_pct) }}% off)</span>
+            {% else %}{{ l.line_amount | rupees }}{% endif %}
+          </td>
         </tr>
       {% endfor %}
       </tbody>
     </table>
   </div>
+  {% set subtotal = lines | sum(attribute="line_amount") %}
+  {% set whole_off = subtotal - (bill.total - bill.shipping) %}
+  {% if whole_off or bill.shipping %}
+  <p class="sum-row"><span>Subtotal</span><span class="mono">{{ subtotal | rupees }}</span></p>
+  {% endif %}
+  {% if bill.whole_discount_pct %}
+  <p class="sum-row"><span>Whole-bill discount ({{ "%g" | format(bill.whole_discount_pct) }}%)</span>
+    <span class="mono">−{{ whole_off | rupees }}</span></p>
+  {% endif %}
+  {% if bill.shipping %}
+  <p class="sum-row"><span>Shipping &amp; handling</span><span class="mono">{{ bill.shipping | rupees }}</span></p>
+  {% endif %}
   <p class="total-row"><span>Total</span><strong class="mono big">{{ bill.total | rupees }}</strong></p>
   <p class="muted">Paid by:
-    {% for p in payments %}{{ p.mode }} {{ p.amount | rupees }}{% if p.paid_at %} (received {{ p.paid_at[:10] }}){% endif %}{% if not loop.last %}, {% endif %}
+    {% for p in payments %}{{ p.mode }} {{ p.amount | rupees }}{% if p.paid_at %} (received {{ p.paid_at | fdate }}){% endif %}{% if not loop.last %}, {% endif %}
     {% else %}nothing yet{% endfor %}
   </p>
   {% if bill.due_amount and bill.status == 'Saved' %}
   <div class="due-note">
-    <p><strong>Payment due: {{ bill.due_amount | rupees }}</strong> by {{ bill.due_date }}</p>
+    <p><strong>Payment due: {{ bill.due_amount | rupees }}</strong> by {{ bill.due_date | fdate }}</p>
     <form method="post" action="{{ url_for('bills.payment_received', bill_id=bill.id) }}" class="due-form">
       <select name="mode" id="recv-mode" aria-label="How was it paid?" required>
         <option value="">How was it paid?</option>
@@ -60,3 +77,5 @@
   {% endif %}
 </div>
 {% endblock %}
+
+

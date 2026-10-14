@@ -1,4 +1,4 @@
-import os
+﻿import os
 
 from flask import Flask, redirect, url_for
 
@@ -27,8 +27,9 @@ def create_app(test_config=None):
     app.register_blueprint(billing.bp)
     app.register_blueprint(bills_routes.bp)
 
-    from .services.money import format_rupees
+    from .services.money import format_date, format_rupees
     app.jinja_env.filters["rupees"] = format_rupees
+    app.jinja_env.filters["fdate"] = format_date
 
     @app.route("/")
     def index():
@@ -41,3 +42,4 @@ def create_app(test_config=None):
         return auth.placeholder("Settings")
 
     return app
+
