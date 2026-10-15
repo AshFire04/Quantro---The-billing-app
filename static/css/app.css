@@ -13,7 +13,7 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px s
 .page { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
 .page.narrow { max-width: 460px; }
 .page.wide { max-width: 1800px; }
-.page.spread { width: 90%; max-width: none; }  /* Home, Inventory, Past bills, Shop Details: 90% of the screen, with space at the sides */
+.page.spread { width: 80%; max-width: none; }  /* Home, Inventory, Past bills, Shop Details: 80% of the screen, with space at the sides */
 .muted { color: var(--color-muted); }
 .card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 14px; padding: 20px; }
 .page-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
