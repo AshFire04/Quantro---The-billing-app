@@ -5,7 +5,7 @@ status: approved
 
 # Build Checklist
 
-Build mode: learn
+Build mode: fast
 
 ## Slices
 
