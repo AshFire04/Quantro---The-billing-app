@@ -99,7 +99,7 @@ Build mode: fast
   Learner check: Make a few bills, one with a due amount, and check that every tile and chart matches what you expect.
   Commit: `Add Home page`
 
-- [ ] **10. It works on a phone, with sample data and a README**
+- [x] **10. It works on a phone, with sample data and a README**
   Becomes usable: One-column phone layout with large tap targets (including Home), `seed.py` for a labelled sample home-furnishings shop, and a README with the start steps.
   Why now: Final polish needed for the demo and for others to try it.
   PRD ref: `prd.md > Look and Feel`, `prd.md > Screens and Layout`
@@ -108,6 +108,7 @@ Build mode: fast
   Verify (mechanical): Follow the README from a fresh clone-like state (install, seed, run); check layout at a narrow width.
   Learner check: Open the app on your phone over the same Wi-Fi and make a bill.
   Commit: `Add phone layout, sample data and README`
+
 ## Hands-on Checkpoints
 
 - [x] Early usable behavior explored — after slice 3 (the kernel: make a bill and see stock drop)
@@ -141,3 +142,4 @@ Activity mode: [not started]
 - Slice 7: offers can be ticked on a bill; a discount typed by hand always beats an offer (even 0), the best matching offer wins, and a whole-bill offer is judged on the bill after item discounts. Bills store the names of offers applied as text so deleting an offer never changes an old bill. QR images are checked by their real file type, limited to 1 MB and 6 per shop, and served only to the shop that owns them.
 - Learner-requested restyle (14 Oct 2026): the colour palette from `Colour.jpeg`; the Settings page renamed **Shop Details** (menu and page title); the Billing screen restyled to follow the learner's `Billing.html` mock-up (item list as rows with live stock left, a 3-column customer form, tinted offers box, summary grid), keeping every existing feature. Dark mode from the mock-up was not added.
 - Slice 9 decisions (learner, 15 Oct 2026): the pie chart became two pies. **Sales against target** shows this month's sales against a monthly target the owner types in Shop Details (a new `monthly_target` on the shop; Home hides the pie and links to Shop Details until one is set). **Inventory by category** splits stock by product category; the build chose stock value (price x stock) as the measure, with products that have no category grouped as "No category" and more than five categories grouped as "Other categories". Home is the first menu item and the page opened after sign in. "Items running low" counts Low and Out of stock together.
+- Slice 10: the README start command is `python -m flask --app app run --host 0.0.0.0` instead of `flask --app app run ...`, because the `flask` command is not always on the PATH (it was not in the Git Bash shell used to test). The phone layout was checked only through the page CSS and the pages loading, not on a real phone; that is for the final kick-the-tires check.

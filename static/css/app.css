@@ -186,3 +186,27 @@ th { font-size: .85em; color: var(--color-muted); font-weight: 600; }
 .c4 { stroke: #8a6fb0; background: #8a6fb0; }
 .c-rest { background: var(--color-border); }
 @media (max-width: 900px) { .tiles { grid-template-columns: repeat(2, 1fr); } .home-grid, .home-grid.pies { grid-template-columns: 1fr; } }
+
+/* ---- Phone layout: one column, large tap targets ---- */
+@media (max-width: 600px) {
+  body { font-size: 16px; }
+  .page { margin: 14px auto; padding: 0 12px; }
+  .topbar { padding: 8px 12px; gap: 4px 12px; }
+  .topbar nav { order: 3; flex-basis: 100%; flex-wrap: nowrap; overflow-x: auto; }
+  .topbar nav a { padding: 12px 14px; white-space: nowrap; }
+  .who { margin-left: auto; }
+  .who a { padding: 12px 6px; display: inline-block; }
+  .page-head { align-items: flex-start; }
+  .page-head .btn { width: 100%; }
+  .card { padding: 14px; }
+  .tiles { gap: 10px; }
+  .tile strong { font-size: 1.35rem; }
+  .bars { gap: 5px; }
+  .bar-value { font-size: .65rem; }
+  .pie-wrap { width: 140px; height: 140px; }
+  .toolbar input { min-width: 0; }
+  .filters { flex-wrap: wrap; }
+  .chip, .btn, .form input, .form select { min-height: 48px; }
+  .form .btn { width: 100%; margin: 0 0 8px; }
+  .actions { flex-wrap: wrap; }
+}
