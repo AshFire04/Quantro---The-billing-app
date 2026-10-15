@@ -27,6 +27,17 @@
 </section>
 
 <section class="card settings-card">
+  <h2>Monthly sales target</h2>
+  <p class="muted">The Home page shows how much of this you have sold so far this month. Leave it at 0 to switch it off.</p>
+  <form method="post" action="{{ url_for('settings.target') }}" class="form">
+    <label>Target for each month (₹)
+      <input name="monthly_target" inputmode="decimal" value="{{ paise_to_input(g.shop['monthly_target']) if g.shop['monthly_target'] else '' }}" placeholder="e.g. 200000">
+    </label>
+    <button class="btn primary" type="submit">Save target</button>
+  </form>
+</section>
+
+<section class="card settings-card">
   <h2>QR codes</h2>
   <p class="muted">PNG or JPG, under 1 MB each. They print on the bill with their label.</p>
   {% if qr_codes %}

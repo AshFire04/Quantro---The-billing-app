@@ -52,6 +52,22 @@ def details():
     return redirect(url_for("settings.index"))
 
 
+@bp.route("/settings/target", methods=("POST",))
+@login_required
+def target():
+    text = request.form.get("monthly_target", "").strip()
+    try:
+        paise = rupees_to_paise(text or "0")
+    except ValueError:
+        flash("Enter the monthly target as an amount, like 200000")
+        return redirect(url_for("settings.index"))
+    db = get_db()
+    with db:
+        db.execute("UPDATE shops SET monthly_target = ? WHERE id = ?", (paise, g.shop["id"]))
+    flash("Monthly sales target saved", "ok")
+    return redirect(url_for("settings.index"))
+
+
 # ---- Saved offers ----
 
 def read_offer_form():

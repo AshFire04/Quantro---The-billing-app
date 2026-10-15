@@ -10,7 +10,8 @@ CREATE TABLE IF NOT EXISTS shops (
     website TEXT DEFAULT '',
     bank_details TEXT DEFAULT '',
     terms TEXT DEFAULT '',
-    next_invoice_number INTEGER NOT NULL DEFAULT 1
+    next_invoice_number INTEGER NOT NULL DEFAULT 1,
+    monthly_target INTEGER NOT NULL DEFAULT 0   -- paise; the sales goal for a month (0 = not set)
 );
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -119,6 +120,9 @@ def init_db():
         if name not in columns:
             default = "0" if kind == "INTEGER" else "''"
             db.execute(f"ALTER TABLE bills ADD COLUMN {name} {kind} NOT NULL DEFAULT {default}")
+    shop_columns = [row["name"] for row in db.execute("PRAGMA table_info(shops)")]
+    if "monthly_target" not in shop_columns:
+        db.execute("ALTER TABLE shops ADD COLUMN monthly_target INTEGER NOT NULL DEFAULT 0")
     payment_columns = [row["name"] for row in db.execute("PRAGMA table_info(payments)")]
     if "paid_at" not in payment_columns:
         db.execute("ALTER TABLE payments ADD COLUMN paid_at TEXT NOT NULL DEFAULT ''")

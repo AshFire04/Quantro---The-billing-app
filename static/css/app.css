@@ -154,3 +154,35 @@ th { font-size: .85em; color: var(--color-muted); font-weight: 600; }
 .qr figcaption { font-weight: 600; margin: 6px 0; }
 
 
+
+/* ---- Home page (modelled on mock-up A) ---- */
+.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin: 20px 0; }
+.tile { display: flex; flex-direction: column; gap: 6px; }
+.tile strong { font-size: 1.9rem; }
+.home-grid { display: grid; grid-template-columns: 3fr 2fr; gap: 16px; margin-bottom: 16px; }
+.home-grid.pies { grid-template-columns: 1fr 1fr; }
+.card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+.card-head h2 { margin: 0; font-size: 1.15rem; }
+.bars { display: flex; align-items: flex-end; gap: 10px; height: 200px; }
+.bar-col { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 4px; }
+.bar { width: 100%; background: var(--color-ok-bg); border-radius: 8px 8px 0 0; min-height: 2px; }
+.bar.today { background: var(--color-primary); }
+.bar-value { font-size: .78rem; color: var(--color-muted); min-height: 1em; }
+.bar-label { font-size: .85rem; color: var(--color-muted); }
+.low-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--color-border); }
+.low-row:last-child { border-bottom: 0; }
+.low-row .mono { color: var(--color-warn-text); font-weight: 600; }
+.low-row .out-text { color: var(--color-danger); }
+.pie-row { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+.pie-wrap { position: relative; width: 170px; height: 170px; flex: none; }
+.pie { width: 100%; height: 100%; }
+.pie-centre { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 1.6rem; font-weight: 700; }
+.legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 8px; }
+.c0 { stroke: #3368A0; background: #3368A0; }
+.c1 { stroke: #66A3BF; background: #66A3BF; }
+.c2 { stroke: #c98a0b; background: #c98a0b; }
+.c3 { stroke: #6f9a8d; background: #6f9a8d; }
+.c4 { stroke: #8a6fb0; background: #8a6fb0; }
+.c-rest { background: var(--color-border); }
+@media (max-width: 900px) { .tiles { grid-template-columns: repeat(2, 1fr); } .home-grid, .home-grid.pies { grid-template-columns: 1fr; } }

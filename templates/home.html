@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Home{% endblock %}
+{% macro pie(slices, label) %}
+  {% set ns = namespace(offset=25) %}
+  <svg class="pie" viewBox="0 0 42 42" role="img" aria-label="{{ label }}">
+    <circle cx="21" cy="21" r="15.9155" fill="none" stroke="var(--color-border)" stroke-width="7"></circle>
+    {% for s in slices %}
+    <circle class="slice c{{ s.color }}" cx="21" cy="21" r="15.9155" fill="none" stroke-width="7"
+            stroke-dasharray="{{ '%.3f' | format(s.pct) }} {{ '%.3f' | format(100 - s.pct) }}"
+            stroke-dashoffset="{{ '%.3f' | format(ns.offset) }}"></circle>
+    {% set ns.offset = ns.offset - s.pct %}
+    {% endfor %}
+  </svg>
+{% endmacro %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ greeting }}</h1>
+    <p class="muted">Here is how {{ g.shop['name'] }} is doing today.</p>
+  </div>
+  <a class="btn primary" href="{{ url_for('billing.index') }}">+ New bill</a>
+</div>
+
+<div class="tiles">
+  <div class="card tile"><span class="muted">Today's sales</span>
+    <strong class="mono">{{ f.today_sales | rupees }}</strong></div>
+  <div class="card tile"><span class="muted">Bills today</span>
+    <strong class="mono">{{ f.bills_today }}</strong></div>
+  <div class="card tile"><span class="muted">Items running low</span>
+    <strong class="mono">{{ f.low_count }}</strong>
+    <span class="muted">{{ 'Reorder soon' if f.low_count else 'All well stocked' }}</span></div>
+  <div class="card tile"><span class="muted">Payments pending</span>
+    <strong class="mono">{{ f.pending_amount | rupees }}</strong>
+    <span class="muted">{{ f.pending_customers }} bill{{ '' if f.pending_customers == 1 else 's' }}</span></div>
+</div>
+
+<div class="home-grid">
+  <section class="card">
+    <div class="card-head"><h2>Sales this week</h2><span class="muted">Amount in ₹</span></div>
+    <div class="bars">
+      {% for d in f.week %}
+      <div class="bar-col">
+        <span class="bar-value mono">{{ (d.amount / 100) | round | int if d.amount else '' }}</span>
+        <div class="bar {{ 'today' if loop.last }}" style="height: {{ d.height }}%"></div>
+        <span class="bar-label">{{ d.label }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Running low</h2><a href="{{ url_for('inventory.index') }}">View all</a></div>
+    {% for p in f.running_low %}
+    <div class="low-row">
+      <span>{{ p.name }}</span>
+      <span class="mono {{ 'out-text' if p.stock == 0 }}">{{ 'Out of stock' if p.stock == 0 else p.stock ~ ' left' }}</span>
+    </div>
+    {% else %}
+    <p class="muted">Nothing is running low.</p>
+    {% endfor %}
+  </section>
+</div>
+
+<div class="home-grid pies">
+  <section class="card">
+    <div class="card-head"><h2>Sales against target</h2><span class="muted">{{ f.month_name }}</span></div>
+    {% if f.target %}
+    <div class="pie-row">
+      <div class="pie-wrap">
+        {{ pie([{'pct': f.target.pct, 'color': 0}], 'Sales against target') }}
+        <div class="pie-centre mono">{{ f.target.pct | round | int }}%</div>
+      </div>
+      <ul class="legend">
+        <li><span class="swatch c0"></span>Sold <strong class="mono">{{ f.target.sold | rupees }}</strong></li>
+        <li><span class="swatch c-rest"></span>Still to go <strong class="mono">{{ f.target.left | rupees }}</strong></li>
+        <li class="muted">Target <span class="mono">{{ f.target.target | rupees }}</span>{% if f.target.reached %} · reached{% endif %}</li>
+      </ul>
+    </div>
+    {% else %}
+    <p class="muted">You have not set a monthly target yet.</p>
+    <a class="btn" href="{{ url_for('settings.index') }}">Set it in Shop Details</a>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Inventory by category</h2><span class="muted">Value of stock</span></div>
+    {% if f.categories %}
+    <div class="pie-row">
+      <div class="pie-wrap">{{ pie(f.categories, 'Inventory by category') }}</div>
+      <ul class="legend">
+        {% for s in f.categories %}
+        <li><span class="swatch c{{ s.color }}"></span>{{ s.label }} <strong class="mono">{{ s.pct | round | int }}%</strong></li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% else %}
+    <p class="muted">No stock to show yet.</p>
+    {% endif %}
+  </section>
+</div>
+
+<section class="card table-wrap">
+  <div class="card-head"><h2>Recent bills</h2><a href="{{ url_for('bills.index') }}">View all</a></div>
+  {% if f.recent %}
+  <table>
+    <thead><tr><th>Bill</th><th>Customer</th><th class="num">Items</th><th class="num">Amount</th><th>Status</th></tr></thead>
+    <tbody>
+    {% for b in f.recent %}
+      <tr>
+        <td class="mono"><a href="{{ url_for('bills.view', bill_id=b.id) }}">#{{ b.invoice_number }}</a></td>
+        <td>{{ b.customer_name }}</td>
+        <td class="num mono">{{ b.item_count }}</td>
+        <td class="num mono">{{ b.total | rupees }}</td>
+        {% set label, kind = bill_status(b) %}
+        <td><span class="badge status-{{ kind }}">{{ label }}</span></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No bills yet. Your recent bills will show here.</p>
+  {% endif %}
+</section>
+{% endblock %}

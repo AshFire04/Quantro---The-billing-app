@@ -89,7 +89,7 @@ Build mode: fast
   Learner check: Print a bill to PDF and compare it with `Billing book.jpeg`.
   Commit: `Add printable bill layout`
 
-- [ ] **9. You can see how the shop is doing on a Home page**
+- [x] **9. You can see how the shop is doing on a Home page**
   Becomes usable: A Home page, modelled on `A · Dashboard home@2x.png`: greeting, tiles (today's sales, bills today, items running low, payments pending), a sales-this-week chart, a pie chart, a running-low list and recent bills.
   Why now: It only reads data the earlier slices already save, so it comes after everything it summarises (bills, payments, dues, stock) is settled.
   PRD ref: `prd.md > What We're Building` (Home page), `prd.md > Deferred From the POC`
@@ -140,4 +140,4 @@ Activity mode: [not started]
 - New slice 9 (Home page) added at the learner's request on 14 Oct 2026; the phone layout, sample data and README slice moved to 10. The Home page is modelled on mock-up A with a pie chart; the learner chose to place it near the end. This reverses the earlier decision to leave mock-up A out of the proof of concept; `prd.md`, `scope.md` and `spec.md` were updated to match.
 - Slice 7: offers can be ticked on a bill; a discount typed by hand always beats an offer (even 0), the best matching offer wins, and a whole-bill offer is judged on the bill after item discounts. Bills store the names of offers applied as text so deleting an offer never changes an old bill. QR images are checked by their real file type, limited to 1 MB and 6 per shop, and served only to the shop that owns them.
 - Learner-requested restyle (14 Oct 2026): the colour palette from `Colour.jpeg`; the Settings page renamed **Shop Details** (menu and page title); the Billing screen restyled to follow the learner's `Billing.html` mock-up (item list as rows with live stock left, a 3-column customer form, tinted offers box, summary grid), keeping every existing feature. Dark mode from the mock-up was not added.
-
+- Slice 9 decisions (learner, 15 Oct 2026): the pie chart became two pies. **Sales against target** shows this month's sales against a monthly target the owner types in Shop Details (a new `monthly_target` on the shop; Home hides the pie and links to Shop Details until one is set). **Inventory by category** splits stock by product category; the build chose stock value (price x stock) as the measure, with products that have no category grouped as "No category" and more than five categories grouped as "Other categories". Home is the first menu item and the page opened after sign in. "Items running low" counts Low and Out of stock together.

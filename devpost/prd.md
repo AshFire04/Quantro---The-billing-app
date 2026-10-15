@@ -131,6 +131,7 @@ Source: `scope.md > The Core Loop`.
 - Past bills with search, view, Edit (replace) and Cancelled status.
 - Print layout with editable header, footer, bank details and QR codes.
 - Settings for the shop details and offers.
+- A Home page (added by the learner on 14 Oct 2026, modelled on mock-up A): a greeting, tiles for today's sales, bills today, items running low and payments pending, a sales-this-week chart, a pie chart, a running-low list and recent bills. Simple version only; best sellers, monthly reports, the reorder list and the Customers page stay deferred.
 - Mobile and laptop layouts.
 
 ## Deferred From the POC
@@ -138,14 +139,14 @@ Source: `scope.md > The Core Loop`.
 - **Several shops signing up with separate accounts** — needs sign-up flows and separate data; the build stays shop-neutral so this is possible later.
 - **State-wise GST rules and filing summaries** — depends on state and country rules.
 - **Recording purchases to increase stock** — only manual stock edits are in the proof of concept.
-- **Dashboard and reports** — sales graphs, best sellers, daily and monthly summaries.
+- **Reports beyond the Home page** — best sellers, daily and monthly summaries. (A simple Home page with today's figures and charts is now in the proof of concept.)
 - **PDF download** — print is in; saving as PDF may come free with the browser's print dialog.
 
 ## Possible Later Enhancements
 - Reorder list for suppliers, and suggested restock quantities.
 - Customers list and pending payments.
 - Barcode scanning.
-- Import products from a spreadsheet.
+- Import products from a spreadsheet (Excel or CSV): columns for code, name, category, price, stock and low-stock level, with a check on every row. Requested by the learner after the Inventory slice.
 - Offers with start and end dates.
 
 ## Non-Goals
@@ -159,3 +160,5 @@ Source: `scope.md > The Core Loop`.
 - **Low-stock level:** one level per product that she sets, or a single default? Can wait for the build.
 - **Sign-up:** can anyone create an account, or does the first shop get an account made for them? Can wait for `4-spec`.
 - **Final colour theme and the shop's logo:** can wait for the build.
+
+
