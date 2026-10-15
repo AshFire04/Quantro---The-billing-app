@@ -60,10 +60,12 @@ def view(bill_id):
                        (bill_id,)).fetchall()
     payments = db.execute("SELECT * FROM payments WHERE bill_id = ? ORDER BY id",
                           (bill_id,)).fetchall()
+    qr_codes = db.execute("SELECT * FROM shop_qr_codes WHERE shop_id = ? ORDER BY position, id",
+                          (g.shop["id"],)).fetchall()
     other = lambda bill_id: db.execute(
         "SELECT id, invoice_number FROM bills WHERE id = ? AND shop_id = ?",
         (bill_id, g.shop["id"])).fetchone() if bill_id else None
-    return render_template("bill_view.html", bill=bill, lines=lines, payments=payments,
+    return render_template("bill_view.html", bill=bill, lines=lines, payments=payments, qr_codes=qr_codes,
                            replaced_by=other(bill["replaced_by"]), replaces=other(bill["replaces"]),
                            just_saved=request.args.get("saved") == "1",
                            payment_modes=PAYMENT_MODES)

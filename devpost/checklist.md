@@ -79,7 +79,7 @@ Build mode: learn
   Learner check: Enter Sajja's details, add "10% off above ₹2,500", and apply it to a bill.
   Commit: `Add shop settings and saved offers`
 
-- [ ] **8. You can print a bill that looks like her paper bill**
+- [x] **8. You can print a bill that looks like her paper bill**
   Becomes usable: Print button gives a bill with the shop header, item table, totals, bank details, terms and labelled QR codes.
   Why now: It needs saved bills, discounts and settings to exist first.
   PRD ref: `prd.md > Printing and shop settings`

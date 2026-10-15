@@ -1,0 +1,35 @@
+/* The paper bill: hidden on screen, shown when printing (or saving as PDF). */
+.paper { display: none; }
+
+@media print {
+  @page { size: A5; margin: 8mm; }
+  body { background: #fff; color: #000; }
+  .topbar, .screen-only, .flash { display: none !important; }
+  main { padding: 0; max-width: none; margin: 0; }
+  .paper {
+    display: block; border: 2px solid #000; padding: 4mm; font-size: 11pt;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  .paper-head { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid #000; padding-bottom: 2mm; }
+  .paper-shop { text-align: center; flex: 1; }
+  .paper-shop h2 { margin: 0 0 1mm; font-size: 18pt; }
+  .paper-memo { font-size: 10pt; white-space: nowrap; }
+  .paper-meta { display: flex; justify-content: space-between; margin: 3mm 0; }
+  .paper-no { text-align: right; }
+  .paper table { width: 100%; border-collapse: collapse; }
+  .paper-items th, .paper-items td { border: 1px solid #000; padding: 1.5mm 2mm; text-align: right; }
+  .paper-items th:first-child, .paper-items td:first-child { text-align: center; width: 9mm; }
+  .paper-items .left { text-align: left; }
+  .paper-items tr.blank td { height: 7mm; }
+  .paper-totals { margin-top: -1px; }
+  .paper-totals td { border: 1px solid #000; padding: 1.5mm 2mm; text-align: right; }
+  .paper-totals td:first-child { width: 60%; }
+  .paper-totals .grand td { font-weight: 700; font-size: 12pt; }
+  .paper-bank { border: 1px solid #000; border-top: 0; padding: 2mm; font-size: 10pt; }
+  .paper-bank .terms { margin-top: 2mm; }
+  .paper-qr { display: flex; justify-content: space-around; margin-top: 4mm; }
+  .paper-qr figure { margin: 0; text-align: center; }
+  .paper-qr img { width: 30mm; height: 30mm; object-fit: contain; }
+  .paper-qr figcaption { font-size: 10pt; }
+  .paper-thanks { margin-top: 3mm; padding-top: 2mm; border-top: 1px dashed #000; text-align: center; font-size: 10pt; }
+}

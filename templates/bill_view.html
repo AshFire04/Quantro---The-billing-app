@@ -1,7 +1,8 @@
 {% extends "base.html" %}
 {% block title %}Bill #{{ bill.invoice_number }}{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/print.css') }}">{% endblock %}
 {% block content %}
-<div class="page-head">
+<div class="page-head screen-only">
   {% set label, kind = bill_status(bill) %}
   <h1>Bill #{{ bill.invoice_number }} <span class="badge status-{{ kind }}">{{ label }}</span></h1>
   <div class="actions">
@@ -12,21 +13,22 @@
       <button class="btn danger" type="submit">Cancel bill</button>
     </form>
     {% endif %}
+    <button class="btn" type="button" onclick="window.print()">Print</button>
     <a class="btn" href="{{ url_for('bills.index') }}">Past bills</a>
     <a class="btn primary" href="{{ url_for('billing.index') }}">New bill</a>
   </div>
 </div>
 {% if bill.status == 'Cancelled' %}
-<p class="flash">This bill is cancelled{% if replaced_by %} and was replaced by
+<p class="flash screen-only">This bill is cancelled{% if replaced_by %} and was replaced by
   <a href="{{ url_for('bills.view', bill_id=replaced_by.id) }}">bill #{{ replaced_by.invoice_number }}</a>{% endif %}.
   Its items went back into stock.</p>
 {% endif %}
 {% if replaces %}
-<p class="muted">This bill replaces <a href="{{ url_for('bills.view', bill_id=replaces.id) }}">bill #{{ replaces.invoice_number }}</a>.</p>
+<p class="muted screen-only">This bill replaces <a href="{{ url_for('bills.view', bill_id=replaces.id) }}">bill #{{ replaces.invoice_number }}</a>.</p>
 {% endif %}
-{% if just_saved %}<p class="flash ok">Bill saved and stock updated.</p>{% endif %}
+{% if just_saved %}<p class="flash ok screen-only">Bill saved and stock updated.</p>{% endif %}
 
-<div class="card">
+<div class="card screen-only">
   <p class="muted">
     {{ bill.created_at | fdate }}
     · Customer: {{ bill.customer_name }}{% if bill.customer_phone %} ({{ bill.customer_phone }}){% endif %}{% if bill.customer_location %}, {{ bill.customer_location }}{% endif %}
@@ -94,9 +96,62 @@
   </script>
   {% endif %}
 </div>
+
+{% set subtotal = lines | sum(attribute="line_amount") %}
+{% set whole_off = subtotal - (bill.total - bill.shipping) %}
+<section class="paper" aria-label="Printable bill">
+  <header class="paper-head">
+    <div class="paper-shop">
+      <h2>{{ g.shop['name'] }}</h2>
+      {% if g.shop['website'] %}<div>{{ g.shop['website'] }}</div>{% endif %}
+      {% if g.shop['phone'] %}<div>Ph: {{ g.shop['phone'] }}</div>{% endif %}
+    </div>
+    <div class="paper-memo">Cash / Credit Memo</div>
+  </header>
+  <div class="paper-meta">
+    <div>
+      <div>Customer: <strong>{{ bill.customer_name }}</strong>{% if bill.customer_phone %} ({{ bill.customer_phone }}){% endif %}</div>
+      {% if bill.customer_location %}<div>{{ bill.customer_location }}</div>{% endif %}
+    </div>
+    <div class="paper-no">
+      <div>Bill No: <strong>{{ '%03d' | format(bill.invoice_number) }}</strong>{% if bill.status == 'Cancelled' %} (CANCELLED){% endif %}</div>
+      <div>Date: {{ bill.created_at | fdate }}</div>
+    </div>
+  </div>
+  <table class="paper-items">
+    <thead><tr><th>Sr.</th><th class="left">Description of Goods</th><th>Qty</th><th>Rate</th><th>Amount</th></tr></thead>
+    <tbody>
+    {% for l in lines %}
+      <tr>
+        <td>{{ loop.index }}</td>
+        <td class="left">{% if l.code %}{{ l.code }} · {% endif %}{{ l.name }}{% if l.line_discount_pct %} ({{ "%g" | format(l.line_discount_pct) }}% off){% endif %}</td>
+        <td>{{ l.quantity }}</td>
+        <td>{{ l.rate | rupees }}</td>
+        <td>{{ l.line_amount | rupees }}</td>
+      </tr>
+    {% endfor %}
+    {% for _ in range([8 - lines | length, 0] | max) %}<tr class="blank"><td></td><td></td><td></td><td></td><td></td></tr>{% endfor %}
+    </tbody>
+  </table>
+  <table class="paper-totals">
+    {% if whole_off or bill.shipping %}<tr><td>Subtotal</td><td>{{ subtotal | rupees }}</td></tr>{% endif %}
+    {% if bill.whole_discount_pct %}<tr><td>Whole-bill discount ({{ "%g" | format(bill.whole_discount_pct) }}%)</td><td>−{{ whole_off | rupees }}</td></tr>{% endif %}
+    <tr><td>Shipping &amp; Handling</td><td>{% if bill.shipping %}{{ bill.shipping | rupees }}{% endif %}</td></tr>
+    <tr class="grand"><td>Total</td><td>{{ bill.total | rupees }}</td></tr>
+    {% if bill.due_amount and bill.status == 'Saved' %}<tr><td>Payment due ({{ bill.due_date | fdate }})</td><td>{{ bill.due_amount | rupees }}</td></tr>{% endif %}
+  </table>
+  <div class="paper-bank">
+    {% if g.shop['bank_details'] %}<div><strong>Bank Details:</strong><br>{{ g.shop['bank_details'] | e | replace('
+', '<br>' | safe) }}</div>{% endif %}
+    {% if g.shop['terms'] %}<div class="terms">{{ g.shop['terms'] }}</div>{% endif %}
+  </div>
+  {% if qr_codes %}
+  <div class="paper-qr">
+    {% for q in qr_codes %}
+    <figure><img src="{{ url_for('settings.uploaded_file', filename=q.filename) }}" alt="{{ q.label }}"><figcaption>{{ q.label }}</figcaption></figure>
+    {% endfor %}
+  </div>
+  {% endif %}
+  <footer class="paper-thanks">Thank you for shopping at {{ g.shop['name'] }}</footer>
+</section>
 {% endblock %}
-
-
-
-
-
