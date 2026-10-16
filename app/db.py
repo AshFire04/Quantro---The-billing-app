@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS bills (
     due_date TEXT NOT NULL DEFAULT '',      -- old bills only: when the rest was expected
     customer_type TEXT NOT NULL DEFAULT 'Retail',  -- Retail or B2B
     round_off INTEGER NOT NULL DEFAULT 0,   -- paise added or taken off to reach a whole rupee
+    customer_id INTEGER NOT NULL DEFAULT 0, -- the saved customer (0 = none)
     place_of_sale TEXT NOT NULL DEFAULT '',
     order_source TEXT NOT NULL DEFAULT '',  -- Store (walk-in), Stall, Website or Other: ...
     whole_discount_pct REAL NOT NULL DEFAULT 0,
@@ -57,6 +58,16 @@ CREATE TABLE IF NOT EXISTS bills (
     offers_applied TEXT NOT NULL DEFAULT '', -- names of offers that changed a price (kept as text)
     UNIQUE (shop_id, invoice_number)
 );
+CREATE TABLE IF NOT EXISTS customers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    shop_id INTEGER NOT NULL REFERENCES shops(id),
+    name TEXT NOT NULL,                -- 'Asha', or 'Retail - Asha' when there is no phone number
+    phone TEXT NOT NULL DEFAULT '',    -- as typed
+    phone_key TEXT NOT NULL DEFAULT '',  -- digits only; how a customer is found again
+    location TEXT NOT NULL DEFAULT '',
+    customer_type TEXT NOT NULL DEFAULT 'Retail'
+);
+CREATE INDEX IF NOT EXISTS customers_phone ON customers (shop_id, phone_key);
 CREATE TABLE IF NOT EXISTS offers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     shop_id INTEGER NOT NULL REFERENCES shops(id),
@@ -117,12 +128,21 @@ def init_db():
     columns = [row["name"] for row in db.execute("PRAGMA table_info(bills)")]
     added = {"customer_phone": "TEXT", "order_source": "TEXT", "customer_location": "TEXT",
              "due_date": "TEXT", "due_amount": "INTEGER", "offer_ids": "TEXT",
-             "offers_applied": "TEXT", "round_off": "INTEGER", "customer_type": "TEXT"}
+             "offers_applied": "TEXT", "round_off": "INTEGER", "customer_type": "TEXT",
+             "customer_id": "INTEGER"}
     for name, kind in added.items():
         if name not in columns:
             default = ("0" if kind == "INTEGER" else "'Retail'" if name == "customer_type"
                        else "''")
             db.execute(f"ALTER TABLE bills ADD COLUMN {name} {kind} NOT NULL DEFAULT {default}")
+    if "customer_id" not in columns:
+        # Bills made before Customer Details existed: save their customers, oldest first.
+        from .services.customers import save_customer
+        for b in db.execute("SELECT id, shop_id, customer_name, customer_phone, "
+                            "customer_location, customer_type FROM bills ORDER BY id").fetchall():
+            cid = save_customer(db, b["shop_id"], b["customer_name"], b["customer_phone"],
+                                b["customer_location"], b["customer_type"] or "Retail")
+            db.execute("UPDATE bills SET customer_id = ? WHERE id = ?", (cid, b["id"]))
     shop_columns = [row["name"] for row in db.execute("PRAGMA table_info(shops)")]
     if "monthly_target" not in shop_columns:
         db.execute("ALTER TABLE shops ADD COLUMN monthly_target INTEGER NOT NULL DEFAULT 0")

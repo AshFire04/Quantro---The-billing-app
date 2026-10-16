@@ -6,6 +6,7 @@ recalculated here from the products in the database.
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
+from .customers import save_customer
 from .money import format_rupees, rupees_to_paise, take_percent_off
 
 PAYMENT_MODES = ["UPI", "Cash", "Net-banking", "Other"]
@@ -256,6 +257,8 @@ def save_bill(db, shop_id, items, customer_name, customer_phone="", place_of_sal
             lines, total = priced["lines"], priced["total"]
             due = check_due(due_amount, total)
             payments = check_payments(payments, total - due)
+            customer_id = save_customer(db, shop_id, customer_name, customer_phone,
+                                        customer_location, customer_type)
             shop = db.execute("SELECT next_invoice_number FROM shops WHERE id = ?",
                               (shop_id,)).fetchone()
             number = shop["next_invoice_number"]
@@ -265,15 +268,15 @@ def save_bill(db, shop_id, items, customer_name, customer_phone="", place_of_sal
                 "INSERT INTO bills (shop_id, invoice_number, created_at, customer_name, "
                 "customer_phone, customer_location, place_of_sale, order_source, total, "
                 "due_amount, whole_discount_pct, shipping, replaces, offer_ids, "
-                "offers_applied, customer_type, round_off) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "offers_applied, customer_type, round_off, customer_id) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (shop_id, number, created_at,
                  customer_name, customer_phone, customer_location.strip(),
                  place_of_sale.strip(), source, total, due,
                  float(priced["whole_pct"]), shipping_paise, replaces,
                  ",".join(str(o["id"]) for o in offers),
                  ", ".join(priced["offers_applied"]), customer_type,
-                 priced["round_off"])).lastrowid
+                 priced["round_off"], customer_id)).lastrowid
             if replaces is not None:
                 db.execute("UPDATE bills SET status = 'Cancelled', replaced_by = ? "
                            "WHERE id = ?", (bill_id, replaces))

@@ -15,7 +15,7 @@ def index():
     args = request.args
     q = args.get("q", "").strip()
     f = {key: args.get(key, "").strip()
-         for key in ("source", "mode", "due", "date_from", "date_to")}
+         for key in ("source", "mode", "due", "date_from", "date_to", "customer")}
     sql = ("SELECT bills.*, (SELECT invoice_number FROM bills r WHERE r.id = bills.replaced_by) "
            "AS replaced_by_number FROM bills WHERE shop_id = ?")
     params = [g.shop["id"]]
@@ -30,6 +30,9 @@ def index():
     if f["mode"] in PAYMENT_MODES:
         sql += " AND EXISTS (SELECT 1 FROM payments WHERE bill_id = bills.id AND mode LIKE ?)"
         params.append(f["mode"] + "%")
+    if f["customer"].isdigit():
+        sql += " AND customer_id = ?"
+        params.append(int(f["customer"]))
     if f["due"] == "due":
         sql += " AND due_amount > 0 AND status = 'Saved'"
     if f["date_from"]:

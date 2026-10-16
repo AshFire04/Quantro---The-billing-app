@@ -221,6 +221,7 @@ $("clear").onclick = () => {
   renderOffers();
   $("customer").value = "";
   $("phone").value = "";
+  $("phone-note").hidden = true;
   $("location").value = "";
   $("place").value = defaultPlace;
   showOther($("place"), $("place-other"));
@@ -229,6 +230,33 @@ $("clear").onclick = () => {
   $("order-date").value = today();
   if (dueOpen) $("due-toggle").onclick();   // closes the due panel and empties it
   renderBill();
+};
+
+// ---- Saved customers: typing a phone number finds them (by phone only, never by name) ----
+
+let lookupTimer = null;
+$("phone").oninput = () => {
+  clearTimeout(lookupTimer);
+  $("phone-note").hidden = true;
+  if ($("phone").value.replace(/\D/g, "").length < 7) return;
+  lookupTimer = setTimeout(async () => {
+    const asked = $("phone").value;
+    try {
+      const data = await (await fetch("/customers/lookup?phone=" + encodeURIComponent(asked))).json();
+      if ($("phone").value !== asked) return;             // they kept typing
+      if (data.found) {
+        $("customer").value = data.name;
+        $("location").value = data.location;
+        for (const r of document.querySelectorAll('input[name="customer-type"]')) {
+          r.checked = r.value === data.customer_type;
+        }
+        $("phone-note").textContent = "Saved customer found. Their details were filled in.";
+      } else {
+        $("phone-note").textContent = "New customer. They will be saved when you save the bill.";
+      }
+      $("phone-note").hidden = false;
+    } catch (err) { /* offline: just carry on and type the details */ }
+  }, 300);
 };
 
 // ---- The offer tick-boxes ----

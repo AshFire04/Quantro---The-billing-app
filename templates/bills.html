@@ -35,6 +35,7 @@
     </label>
     <label>From <input type="date" name="date_from" value="{{ f.date_from }}"></label>
     <label>To <input type="date" name="date_to" value="{{ f.date_to }}"></label>
+    {% if f.customer %}<input type="hidden" name="customer" value="{{ f.customer }}">{% endif %}
     <button class="btn primary" type="submit">Apply</button>
     {% if filtering %}<a class="btn" href="{{ url_for('bills.index') }}">Clear</a>{% endif %}
   </form>
