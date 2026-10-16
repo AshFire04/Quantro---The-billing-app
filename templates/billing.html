@@ -10,8 +10,8 @@
 {% else %}
 {% if editing %}
 <div class="flash edit-banner">
-  Editing bill #{{ editing.invoice_number }}. Saving creates a new bill (#{{ next_number }}); bill
-  #{{ editing.invoice_number }} will be marked Cancelled and its items go back into stock first.
+  Editing bill {{ editing.bill_label }}. Saving creates a new bill ({{ next_label }}); bill
+  {{ editing.bill_label }} will be marked Cancelled and its items go back into stock first.
   Remove an item or lower a quantity for a return. Payments are copied from the old bill, so check them.
   <a href="{{ url_for('bills.view', bill_id=editing.id) }}">Leave without saving</a>
   {% if skipped %}<br>No longer in Inventory, so not copied: {{ skipped | join(", ") }}.{% endif %}
@@ -26,7 +26,7 @@
 
   <section class="card bill-panel" aria-label="Bill">
     <div class="bill-head">
-      <h1>Bill #{{ next_number }}{% if editing %} <small class="muted">replaces #{{ editing.invoice_number }}</small>{% endif %}</h1>
+      <h1>Bill {{ next_label }}{% if editing %} <small class="muted">replaces {{ editing.bill_label }}</small>{% endif %}</h1>
       <div class="head-actions">
         <label class="order-date">Order placed on:
           <input id="order-date" type="date">
@@ -121,7 +121,7 @@
     </div>
 
     <div id="error" class="flash" hidden></div>
-    <button type="button" id="save" class="btn primary wide-btn" disabled>{% if editing %}Save changes (replaces #{{ editing.invoice_number }}){% else %}Save bill &amp; update stock{% endif %}</button>
+    <button type="button" id="save" class="btn primary wide-btn" disabled>{% if editing %}Save changes (replaces {{ editing.bill_label }}){% else %}Save bill &amp; update stock{% endif %}</button>
   </section>
 </div>
 

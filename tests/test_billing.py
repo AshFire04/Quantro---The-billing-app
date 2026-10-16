@@ -345,3 +345,22 @@ def test_discounts_through_the_website_and_on_the_saved_bill(client):
         "items": [{"product_id": 1, "quantity": 1, "discount": "250"}], "customer": "Asha",
         "order_source": "Stall", "payments": CASH})
     assert bad.status_code == 400 and "between 0 and 100" in bad.get_json()["error"]
+
+
+# ---- Bill numbers like 26/1: a financial year runs April to March -------------------------
+
+def test_financial_year_runs_april_to_march():
+    from datetime import date
+    from app.services.billing import fiscal_year
+    assert fiscal_year(date(2026, 4, 1)) == 26 and fiscal_year(date(2026, 12, 31)) == 26
+    assert fiscal_year(date(2027, 3, 31)) == 26 and fiscal_year(date(2027, 4, 1)) == 27
+
+
+def test_bill_numbers_count_up_and_start_again_each_april(shop):
+    items = [{"product_id": 1, "quantity": 1}]
+    ids = [save(shop, items, name, order_date=day) for name, day in [
+        ("A", "2025-10-01"), ("B", "2025-12-01"), ("C", "2026-03-31"),   # financial year 25
+        ("D", "2026-04-01"), ("E", "2026-04-02")]]                        # April: year 26, from 1
+    labels = [shop.execute("SELECT bill_label FROM bills WHERE id = ?", (i,)).fetchone()[0]
+              for i in ids]
+    assert labels == ["25/1", "25/2", "25/3", "26/1", "26/2"]

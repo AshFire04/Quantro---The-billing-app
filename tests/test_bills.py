@@ -203,5 +203,5 @@ def test_past_bills_shows_upi_cash_netbanking_and_due_for_every_bill(client):
         cells = [c.split("</td>")[0].split(">")[-1].strip() for c in row.split("<td")[1:]]
         rows[cells[2]] = cells
     asha, ravi = rows["Asha"], rows["Ravi"]
-    assert asha[-4:] == ["₹200.00", "₹400.00", "₹0.00", "₹300.00"]
-    assert ravi[-4:] == ["₹0.00", "₹450.00", "₹0.00", "₹0.00"]
+    assert asha[-4:] == ["₹200.00", "₹400.00", "-", "₹300.00"]      # a dash where it is nothing
+    assert ravi[-4:] == ["-", "₹450.00", "-", "-"]

@@ -1,15 +1,15 @@
 {% extends "base.html" %}
-{% block title %}Bill #{{ bill.invoice_number }}{% endblock %}
+{% block title %}Bill {{ bill.bill_label }}{% endblock %}
 {% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/print.css') }}">{% endblock %}
 {% block content %}
 <div class="page-head screen-only">
   {% set label, kind = bill_status(bill) %}
-  <h1>Bill #{{ bill.invoice_number }} <span class="badge status-{{ kind }}">{{ label }}</span></h1>
+  <h1>Bill {{ bill.bill_label }} <span class="badge status-{{ kind }}">{{ label }}</span></h1>
   <div class="actions">
     {% if bill.status == 'Saved' and not bill.replaced_by %}
     <a class="btn" href="{{ url_for('billing.edit', bill_id=bill.id) }}">Edit</a>
     <form method="post" action="{{ url_for('bills.cancel', bill_id=bill.id) }}"
-          onsubmit="return confirm('Cancel bill #{{ bill.invoice_number }}? Its items go back into stock and the bill stays in Past bills as Cancelled.')">
+          onsubmit="return confirm('Cancel bill {{ bill.bill_label }}? Its items go back into stock and the bill stays in Past bills as Cancelled.')">
       <button class="btn danger" type="submit">Cancel bill</button>
     </form>
     {% endif %}
@@ -20,11 +20,11 @@
 </div>
 {% if bill.status == 'Cancelled' %}
 <p class="flash screen-only">This bill is cancelled{% if replaced_by %} and was replaced by
-  <a href="{{ url_for('bills.view', bill_id=replaced_by.id) }}">bill #{{ replaced_by.invoice_number }}</a>{% endif %}.
+  <a href="{{ url_for('bills.view', bill_id=replaced_by.id) }}">bill {{ replaced_by.bill_label }}</a>{% endif %}.
   Its items went back into stock.</p>
 {% endif %}
 {% if replaces %}
-<p class="muted screen-only">This bill replaces <a href="{{ url_for('bills.view', bill_id=replaces.id) }}">bill #{{ replaces.invoice_number }}</a>.</p>
+<p class="muted screen-only">This bill replaces <a href="{{ url_for('bills.view', bill_id=replaces.id) }}">bill {{ replaces.bill_label }}</a>.</p>
 {% endif %}
 {% if just_saved %}<p class="flash ok screen-only">Bill saved and stock updated.</p>{% endif %}
 
@@ -118,7 +118,7 @@
       {% if bill.customer_location %}<div>{{ bill.customer_location }}</div>{% endif %}
     </div>
     <div class="paper-no">
-      <div>Bill No: <strong>{{ '%03d' | format(bill.invoice_number) }}</strong>{% if bill.status == 'Cancelled' %} (CANCELLED){% endif %}</div>
+      <div>Bill No: <strong>{{ bill.bill_label }}</strong>{% if bill.status == 'Cancelled' %} (CANCELLED){% endif %}</div>
       <div>Date: {{ bill.created_at | fdate }}</div>
     </div>
   </div>

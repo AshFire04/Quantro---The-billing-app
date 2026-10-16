@@ -16,14 +16,15 @@ def index():
     q = args.get("q", "").strip()
     f = {key: args.get(key, "").strip()
          for key in ("source", "mode", "due", "date_from", "date_to", "customer")}
-    sql = ("SELECT bills.*, (SELECT invoice_number FROM bills r WHERE r.id = bills.replaced_by) "
+    sql = ("SELECT bills.*, (SELECT bill_label FROM bills r WHERE r.id = bills.replaced_by) "
            "AS replaced_by_number FROM bills WHERE shop_id = ?")
     params = [g.shop["id"]]
     if q:
-        # A bill number may be typed with a '#'. Customer name and phone are searched too.
+        # A bill number may be typed as 26/1, 1 or #1. Customer name and phone are searched too.
         number = q.lstrip("#")
-        sql += " AND (CAST(invoice_number AS TEXT) = ? OR customer_name LIKE ? OR customer_phone LIKE ?)"
-        params += [number, f"%{q}%", f"%{q}%"]
+        sql += (" AND (bill_label = ? OR CAST(bill_seq AS TEXT) = ? "
+                "OR customer_name LIKE ? OR customer_phone LIKE ?)")
+        params += [number, number, f"%{q}%", f"%{q}%"]
     if f["source"] in ORDER_SOURCES:
         sql += " AND order_source LIKE ?"          # 'Other' matches 'Other: Phone call' too
         params.append(f["source"] + "%")
@@ -74,7 +75,7 @@ def view(bill_id):
     qr_codes = db.execute("SELECT * FROM shop_qr_codes WHERE shop_id = ? ORDER BY position, id",
                           (g.shop["id"],)).fetchall()
     other = lambda bill_id: db.execute(
-        "SELECT id, invoice_number FROM bills WHERE id = ? AND shop_id = ?",
+        "SELECT id, bill_label FROM bills WHERE id = ? AND shop_id = ?",
         (bill_id, g.shop["id"])).fetchone() if bill_id else None
     return render_template("bill_view.html", bill=bill, lines=lines, payments=payments, qr_codes=qr_codes,
                            replaced_by=other(bill["replaced_by"]), replaces=other(bill["replaces"]),

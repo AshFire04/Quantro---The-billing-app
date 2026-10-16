@@ -65,3 +65,29 @@ def test_shops_are_separate(client, app):
     assert b"Secret tray" not in client.get("/inventory/").data
     assert client.get("/inventory/1/edit").status_code == 404
     assert client.post("/inventory/1/remove").status_code == 404
+
+
+def test_extra_product_details_are_saved_shown_and_optional(client):
+    from tests.test_auth import create
+    create(client)
+    res = client.post("/inventory/new", data={
+        "name": "Tray", "price": "450", "stock": "5", "low_stock_level": "2",
+        "hsn": "9403", "vendor": "Mehta Traders", "cost_price": "300.50", "gst_rate": "18"})
+    assert res.status_code == 302
+    page = client.get("/inventory/1/edit").data.decode()
+    assert 'value="9403"' in page and "Mehta Traders" in page
+    assert 'value="300.50"' in page and 'value="18"' in page
+    client.post("/inventory/new", data={        # all four left blank is fine
+        "name": "Cushion", "price": "100", "stock": "5", "low_stock_level": "2"})
+    assert client.get("/inventory/2/edit").status_code == 200
+
+
+def test_bad_extra_product_details_are_refused(client):
+    from tests.test_auth import create
+    create(client)
+    base = {"name": "Tray", "price": "450", "stock": "5", "low_stock_level": "2"}
+    for extra, message in [({"hsn": "94A3"}, "digits only"), ({"cost_price": "abc"}, "cost price"),
+                           ({"gst_rate": "150"}, "between 0 and 100"), ({"gst_rate": "x"}, "GST rate")]:
+        res = client.post("/inventory/new", data={**base, **extra}, follow_redirects=True)
+        assert message in res.data.decode()
+    assert "No products yet" in client.get("/inventory/").data.decode()

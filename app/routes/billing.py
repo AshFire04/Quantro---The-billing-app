@@ -3,7 +3,9 @@ from flask import (Blueprint, flash, g, jsonify, redirect, render_template, requ
 
 from ..auth import login_required
 from ..db import get_db
-from ..services.billing import (BillError, CUSTOMER_TYPES, ORDER_SOURCES, PAYMENT_MODES,
+from datetime import date
+
+from ..services.billing import (BillError, CUSTOMER_TYPES, next_bill_label, ORDER_SOURCES, PAYMENT_MODES,
                                 save_bill)
 from ..services.states import DEFAULT_PLACE, PLACES
 from ..services.money import paise_to_input
@@ -32,7 +34,7 @@ def shop_products():
 @login_required
 def index():
     return render_template("billing.html", products=shop_products(),
-                           next_number=g.shop["next_invoice_number"],
+                           next_label=next_bill_label(get_db(), g.shop["id"], date.today())[2],
                            payment_modes=PAYMENT_MODES, order_sources=ORDER_SOURCES,
                            places=PLACES, default_place=DEFAULT_PLACE,
                            customer_types=CUSTOMER_TYPES,
@@ -96,7 +98,7 @@ def edit(bill_id):
         "order_date": old["created_at"][:10],
     }
     return render_template("billing.html", products=products,
-                           next_number=g.shop["next_invoice_number"],
+                           next_label=next_bill_label(get_db(), g.shop["id"], date.today())[2],
                            payment_modes=PAYMENT_MODES, order_sources=ORDER_SOURCES,
                            places=PLACES, default_place=DEFAULT_PLACE,
                            customer_types=CUSTOMER_TYPES,

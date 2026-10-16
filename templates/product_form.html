@@ -1,9 +1,11 @@
 {% extends "base.html" %}
 {% block title %}{{ 'Edit product' if editing else 'Add product' }}{% endblock %}
-{% block main_class %}page narrow{% endblock %}
+{% block main_class %}page medium{% endblock %}
 {% block content %}
 <h1>{{ 'Edit product' if editing else 'Add product' }}</h1>
 <form method="post" class="card form">
+  <div class="form-cols">
+  <div>
   <label>Item code (optional)
     <input name="code" value="{{ product.code or '' }}" placeholder="e.g. KA36">
   </label>
@@ -22,6 +24,23 @@
   <label>Low-stock level (shows "Low" at or below this)
     <input name="low_stock_level" type="number" min="0" step="1" value="{{ product.low_stock_level if product.low_stock_level is not none else 5 }}" required>
   </label>
+  </div>
+  <div>
+  <label>HSN/SAC number (optional)
+    <input name="hsn" inputmode="numeric" maxlength="8" value="{{ product.hsn or '' }}" placeholder="e.g. 9403">
+  </label>
+  <label>Vendor name
+    <input name="vendor" value="{{ product.vendor or '' }}" placeholder="Who you buy it from">
+  </label>
+  <label>Cost price (₹)
+    <input name="cost_price" inputmode="decimal" value="{{ product.cost_price or '' }}" placeholder="What it costs you">
+  </label>
+  <label>GST rate (%)
+    <input name="gst_rate" inputmode="decimal" list="gst-slabs" value="{{ product.gst_rate if product.gst_rate is not none else '' }}" placeholder="e.g. 18">
+    <datalist id="gst-slabs"><option value="0"><option value="5"><option value="12"><option value="18"><option value="28"></datalist>
+  </label>
+  </div>
+  </div>
   <button class="btn primary" type="submit">Save product</button>
   <a class="btn" href="{{ url_for('inventory.index') }}">Cancel</a>
 </form>

@@ -108,7 +108,7 @@
     <tbody>
     {% for b in f.recent %}
       <tr>
-        <td class="mono"><a href="{{ url_for('bills.view', bill_id=b.id) }}">#{{ b.invoice_number }}</a></td>
+        <td class="mono"><a href="{{ url_for('bills.view', bill_id=b.id) }}">{{ b.bill_label }}</a></td>
         <td>{{ b.customer_name }}</td>
         <td class="num mono">{{ b.item_count }}</td>
         <td class="num mono">{{ b.total | rupees }}</td>

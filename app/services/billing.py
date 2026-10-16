@@ -68,6 +68,19 @@ def check_due(due_amount, total):
     return due
 
 
+def fiscal_year(day):
+    """The financial year a day falls in, as two digits: April 2026 to March 2027 is 26."""
+    return (day.year if day.month >= 4 else day.year - 1) % 100
+
+
+def next_bill_label(db, shop_id, day):
+    """(financial year, number, label) the next bill dated `day` will get, like (26, 1, '26/1')."""
+    fy = fiscal_year(day)
+    last = db.execute("SELECT MAX(bill_seq) FROM bills WHERE shop_id = ? AND fy = ?",
+                      (shop_id, fy)).fetchone()[0] or 0
+    return fy, last + 1, f"{fy}/{last + 1}"
+
+
 def check_order_date(order_date):
     """The day the order was placed. Blank means today; a day in the future is refused."""
     text = str(order_date or "").strip()
@@ -261,22 +274,23 @@ def save_bill(db, shop_id, items, customer_name, customer_phone="", place_of_sal
                                         customer_location, customer_type)
             shop = db.execute("SELECT next_invoice_number FROM shops WHERE id = ?",
                               (shop_id,)).fetchone()
-            number = shop["next_invoice_number"]
+            number = shop["next_invoice_number"]       # internal; the owner sees the label
+            fy, seq, label = next_bill_label(db, shop_id, day)
             db.execute("UPDATE shops SET next_invoice_number = ? WHERE id = ?",
                        (number + 1, shop_id))
             bill_id = db.execute(
                 "INSERT INTO bills (shop_id, invoice_number, created_at, customer_name, "
                 "customer_phone, customer_location, place_of_sale, order_source, total, "
                 "due_amount, whole_discount_pct, shipping, replaces, offer_ids, "
-                "offers_applied, customer_type, round_off, customer_id) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "offers_applied, customer_type, round_off, customer_id, fy, bill_seq, bill_label) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (shop_id, number, created_at,
                  customer_name, customer_phone, customer_location.strip(),
                  place_of_sale.strip(), source, total, due,
                  float(priced["whole_pct"]), shipping_paise, replaces,
                  ",".join(str(o["id"]) for o in offers),
                  ", ".join(priced["offers_applied"]), customer_type,
-                 priced["round_off"], customer_id)).lastrowid
+                 priced["round_off"], customer_id, fy, seq, label)).lastrowid
             if replaces is not None:
                 db.execute("UPDATE bills SET status = 'Cancelled', replaced_by = ? "
                            "WHERE id = ?", (bill_id, replaces))

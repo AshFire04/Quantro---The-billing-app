@@ -1,3 +1,12 @@
+from datetime import date
+
+from app.services.billing import fiscal_year
+
+
+def num_today(n):
+    return f"{fiscal_year(date.today())}/{n}"
+
+
 from tests.test_auth import create
 from tests.test_bills import make_bill
 from tests.test_inventory import add
@@ -18,7 +27,7 @@ def test_printable_bill_uses_the_shops_own_settings(client):
     url = make_bill(client, "Asha Rao")
     page = paper(seen(client.get(url)))
     for text in ("Sajja Home Furnishing", "www.sajja.in", "90087 89936", "Cash / Credit Memo",
-                 "Bill No: <strong>001", "Asha Rao", "Tray", "₹450.00", "Total", "Shipping",
+                 "Bill No: <strong>" + num_today(1), "Asha Rao", "Tray", "₹450.00", "Total", "Shipping",
                  "Bank Details", "IFSC: ABCD0001", "Goods once sold will not be taken back",
                  "Follow us", "/uploads/"):
         assert text in page

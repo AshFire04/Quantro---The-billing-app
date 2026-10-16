@@ -27,22 +27,23 @@ def test_a_bill_saves_its_customer_and_the_same_phone_is_one_customer(client):
     assert ">2</a>" in page                                         # two bills, one customer
 
 
-def test_no_phone_saves_as_retail_dash_name(client):
+def test_no_phone_saves_under_the_plain_name(client):
     setup(client)
     make_bill(client, "Ravi")
     make_bill(client, "ravi")                                       # same label, any capitals
     make_bill(client, "Meena")
     page = customers(client)
-    assert "Retail - Meena" in page and page.lower().count("retail - ravi") == 1
+    assert "<td>Meena</td>" in page and page.lower().count("<td>ravi</td>") == 1
+    assert "Retail -" not in page
 
 
-def test_b2b_without_a_phone_is_labelled_b2b(client):
+def test_b2b_without_a_phone_also_keeps_the_plain_name(client):
     setup(client)
     client.post("/billing/save", json={
         "items": [{"product_id": 1, "quantity": 1}], "customer": "Sharma Stores",
         "order_source": "Stall", "payments": [{"mode": "Cash"}], "customer_type": "B2B"})
     page = customers(client)
-    assert "B2B - Sharma Stores" in page and "Retail - Sharma" not in page
+    assert "<td>Sharma Stores</td>" in page and "B2B -" not in page and "<td>B2B</td>" in page
 
 
 def test_lookup_is_by_phone_only(client):

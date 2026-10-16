@@ -3,6 +3,8 @@ from flask import (Blueprint, abort, flash, g, redirect, render_template,
 
 from ..auth import login_required
 from ..db import get_db
+from decimal import Decimal, InvalidOperation
+
 from ..services.money import paise_to_input, rupees_to_paise
 
 bp = Blueprint("inventory", __name__, url_prefix="/inventory")
@@ -58,7 +60,26 @@ def read_form(product_id=None):
         "code": f.get("code", "").strip() or None,
         "name": f.get("name", "").strip(),
         "category": f.get("category", "").strip(),
+        "hsn": f.get("hsn", "").strip(),
+        "vendor": f.get("vendor", "").strip(),
     }
+    if values["hsn"] and not (values["hsn"].isdigit() and len(values["hsn"]) <= 8):
+        return values, "The HSN/SAC number should be digits only, up to 8 of them"
+    try:
+        cost = f.get("cost_price", "").strip()
+        values["cost_price"] = rupees_to_paise(cost) if cost else 0
+    except ValueError:
+        return values, "Enter the cost price as a number, like 300 or 300.50"
+    gst = f.get("gst_rate", "").strip().rstrip("%")
+    values["gst_rate"] = None
+    if gst:
+        try:
+            rate = Decimal(gst)
+        except InvalidOperation:
+            return values, "Enter the GST rate as a number, like 5 or 18"
+        if not rate.is_finite() or not 0 <= rate <= 100 or rate != rate.quantize(Decimal("0.01")):
+            return values, "The GST rate must be between 0 and 100, with at most two decimal places"
+        values["gst_rate"] = float(rate)
     try:
         values["price"] = rupees_to_paise(f.get("price", ""))
         values["stock"] = int(f.get("stock", ""))
@@ -93,9 +114,11 @@ def new():
             with db:
                 db.execute(
                     "INSERT INTO products (shop_id, code, name, category, price, "
-                    "stock, low_stock_level) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    "stock, low_stock_level, hsn, vendor, cost_price, gst_rate) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (g.shop["id"], values["code"], values["name"], values["category"],
-                     values["price"], values["stock"], values["low_stock_level"]))
+                     values["price"], values["stock"], values["low_stock_level"],
+                     values["hsn"], values["vendor"], values["cost_price"], values["gst_rate"]))
             return redirect(url_for("inventory.index"))
         values = request.form
     return render_template("product_form.html", product=values, editing=False)
@@ -115,11 +138,15 @@ def edit(product_id):
         with db:
             db.execute(
                 "UPDATE products SET code = ?, name = ?, category = ?, price = ?, "
-                "stock = ?, low_stock_level = ? WHERE id = ? AND shop_id = ?",
+                "stock = ?, low_stock_level = ?, hsn = ?, vendor = ?, cost_price = ?, "
+                "gst_rate = ? WHERE id = ? AND shop_id = ?",
                 (values["code"], values["name"], values["category"], values["price"],
-                 values["stock"], values["low_stock_level"], product_id, g.shop["id"]))
+                 values["stock"], values["low_stock_level"], values["hsn"], values["vendor"],
+                 values["cost_price"], values["gst_rate"], product_id, g.shop["id"]))
         return redirect(url_for("inventory.index"))
-    product = dict(product, price=paise_to_input(product["price"]))
+    product = dict(product, price=paise_to_input(product["price"]),
+                   cost_price=paise_to_input(product["cost_price"]) if product["cost_price"] else "",
+                   gst_rate="%g" % product["gst_rate"] if product["gst_rate"] is not None else "")
     return render_template("product_form.html", product=product, editing=True,
                            product_id=product_id)
 

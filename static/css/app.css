@@ -61,7 +61,7 @@ th { font-size: .85em; color: var(--color-muted); font-weight: 600; }
 .page-head h1 .badge { font-size: .45em; vertical-align: middle; margin-left: 6px; }
 
 /* ---- Billing screen (modelled on Billing.html) ---- */
-.billing { display: grid; grid-template-columns: minmax(280px, 2fr) minmax(520px, 3fr); gap: 24px; align-items: start; }
+.billing { display: grid; grid-template-columns: minmax(240px, 3fr) minmax(520px, 7fr); gap: 24px; align-items: start; }
 @media (max-width: 900px) { .billing { grid-template-columns: 1fr; } }
 
 .search { width: 100%; font-size: 1.05rem; padding: 14px 16px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); font-family: inherit; color: inherit; }
@@ -220,3 +220,7 @@ th { font-size: .85em; color: var(--color-muted); font-weight: 600; }
 .bill-panel .radio input { width: auto; min-height: 0; accent-color: var(--color-primary, currentColor); }
 
 .small { font-size: .8rem; }
+
+.page.medium { max-width: 900px; }
+.form-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 28px; }
+@media (max-width: 700px) { .form-cols { grid-template-columns: 1fr; } }

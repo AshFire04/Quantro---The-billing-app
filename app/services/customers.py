@@ -1,7 +1,7 @@
 """The shop's saved customers. Plain Python, no Flask in here.
 
 A customer with a phone number is found by that number alone, never by name. A customer
-without one is saved under a label like "Retail - Asha" and found again by that label.
+without one is saved under their name and found again by that name.
 """
 
 
@@ -27,11 +27,10 @@ def save_customer(db, shop_id, name, phone, location, customer_type):
     key = phone_key(phone)
     if key:
         found = find_by_phone(db, shop_id, phone)
-        label = name
     else:
-        label = f"{customer_type} - {name}"
         found = db.execute("SELECT * FROM customers WHERE shop_id = ? AND phone_key = '' "
-                           "AND lower(name) = lower(?)", (shop_id, label)).fetchone()
+                           "AND lower(name) = lower(?)", (shop_id, name)).fetchone()
+    label = name
     if found is None:
         return db.execute(
             "INSERT INTO customers (shop_id, name, phone, phone_key, location, customer_type) "
