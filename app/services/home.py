@@ -4,10 +4,12 @@ Cancelled bills never count as sales. Money is whole paise, like everywhere else
 """
 from datetime import date, timedelta
 
+from .profit import profit_figures
+
 MAX_PIE_SLICES = 5          # more categories than this are grouped as "Other categories"
 
 
-def pie_slices(pairs):
+def pie_slices(pairs, other="Other categories"):
     """[(label, value), ...] -> [{label, value, pct, color}, ...] for the biggest first.
 
     Zero-value entries are dropped; extra small ones are grouped so a pie stays readable.
@@ -15,7 +17,7 @@ def pie_slices(pairs):
     pairs = sorted((p for p in pairs if p[1] > 0), key=lambda p: -p[1])
     if len(pairs) > MAX_PIE_SLICES:
         rest = sum(v for _, v in pairs[MAX_PIE_SLICES - 1:])
-        pairs = pairs[:MAX_PIE_SLICES - 1] + [("Other categories", rest)]
+        pairs = pairs[:MAX_PIE_SLICES - 1] + [(other, rest)]
     total = sum(v for _, v in pairs)
     return [{"label": label, "value": value, "pct": value * 100 / total, "color": i}
             for i, (label, value) in enumerate(pairs)]
@@ -66,6 +68,12 @@ def home_figures(db, shop_id, today=None):
         "SUM(price * stock) AS value FROM products WHERE shop_id = ? AND active = 1 "
         "GROUP BY label", (shop_id,)).fetchall()
 
+    suppliers = db.execute(
+        "SELECT CASE WHEN supplier = '' THEN 'No supplier' ELSE supplier END AS label, "
+        "SUM(price * stock) AS value FROM products WHERE shop_id = ? AND active = 1 "
+        "GROUP BY label", (shop_id,)).fetchall()
+    month = profit_figures(db, shop_id, month_start, day)
+
     target = db.execute("SELECT monthly_target FROM shops WHERE id = ?", (shop_id,)).fetchone()[0]
     return {
         "today_sales": sales_between(day, day),
@@ -78,6 +86,9 @@ def home_figures(db, shop_id, today=None):
         "month_name": today.strftime("%B"),
         "target": target_progress(sales_between(month_start, day), target),
         "categories": pie_slices([(r["label"], r["value"]) for r in categories]),
+        "suppliers": pie_slices([(r["label"], r["value"]) for r in suppliers],
+                                other="Other suppliers"),
+        "month_profit": month,
         "recent": db.execute(
             "SELECT b.*, (SELECT COUNT(*) FROM bill_lines WHERE bill_id = b.id) AS item_count "
             "FROM bills b WHERE b.shop_id = ? ORDER BY b.id DESC LIMIT 5", (shop_id,)).fetchall(),

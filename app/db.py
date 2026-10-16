@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS products (
     stock INTEGER NOT NULL DEFAULT 0,
     low_stock_level INTEGER NOT NULL DEFAULT 5,
     hsn TEXT NOT NULL DEFAULT '',      -- HSN or SAC number (optional)
-    vendor TEXT NOT NULL DEFAULT '',   -- who the item is bought from (optional)
+    supplier TEXT NOT NULL DEFAULT '', -- who the item is bought from (optional)
     cost_price INTEGER NOT NULL DEFAULT 0,  -- paise; what it cost the shop (0 = not entered)
     gst_rate REAL,                     -- percent, like 18 (empty = not entered)
     active INTEGER NOT NULL DEFAULT 1, -- 0 = removed (hidden, kept for old bills)
@@ -101,7 +101,8 @@ CREATE TABLE IF NOT EXISTS bill_lines (
     quantity INTEGER NOT NULL,
     rate INTEGER NOT NULL,             -- paise, copied at the time of sale
     line_discount_pct REAL NOT NULL DEFAULT 0,
-    line_amount INTEGER NOT NULL       -- paise, after the line discount
+    line_amount INTEGER NOT NULL,      -- paise, after the line discount
+    cost INTEGER NOT NULL DEFAULT 0    -- paise per item, the product's cost price at the time of sale
 );
 CREATE TABLE IF NOT EXISTS payments (  -- a bill has one or more; together they equal its total
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -178,10 +179,16 @@ def init_db():
     if "monthly_target" not in shop_columns:
         db.execute("ALTER TABLE shops ADD COLUMN monthly_target INTEGER NOT NULL DEFAULT 0")
     product_columns = [row["name"] for row in db.execute("PRAGMA table_info(products)")]
-    for name, definition in {"hsn": "TEXT NOT NULL DEFAULT ''", "vendor": "TEXT NOT NULL DEFAULT ''",
+    if "vendor" in product_columns:                 # it was called vendor for a while
+        db.execute("ALTER TABLE products RENAME COLUMN vendor TO supplier")
+        product_columns = [row["name"] for row in db.execute("PRAGMA table_info(products)")]
+    for name, definition in {"hsn": "TEXT NOT NULL DEFAULT ''", "supplier": "TEXT NOT NULL DEFAULT ''",
                              "cost_price": "INTEGER NOT NULL DEFAULT 0", "gst_rate": "REAL"}.items():
         if name not in product_columns:
             db.execute(f"ALTER TABLE products ADD COLUMN {name} {definition}")
+    line_columns = [row["name"] for row in db.execute("PRAGMA table_info(bill_lines)")]
+    if "cost" not in line_columns:
+        db.execute("ALTER TABLE bill_lines ADD COLUMN cost INTEGER NOT NULL DEFAULT 0")
     payment_columns = [row["name"] for row in db.execute("PRAGMA table_info(payments)")]
     if "paid_at" not in payment_columns:
         db.execute("ALTER TABLE payments ADD COLUMN paid_at TEXT NOT NULL DEFAULT ''")

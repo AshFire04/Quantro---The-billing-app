@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block main_class %}page spread{% endblock %}
+{% block title %}Profit Statement{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Profit Statement</h1>
+</div>
+<p class="muted">Profit is what each item sold for (after any bill discount) minus what it cost you. Cancelled bills are left out.</p>
+
+<form method="get" class="toolbar filter-form">
+  <label>From <input type="date" name="date_from" value="{{ date_from }}"></label>
+  <label>To <input type="date" name="date_to" value="{{ date_to }}"></label>
+  <button class="btn primary" type="submit">Apply</button>
+  {% if date_from or date_to %}<a class="btn" href="{{ url_for('profit.index') }}">Clear</a>{% endif %}
+</form>
+
+<div class="tiles">
+  <div class="card tile"><span class="muted">Sales (items with a cost price)</span>
+    <strong class="mono">{{ p.revenue | rupees }}</strong></div>
+  <div class="card tile"><span class="muted">Cost of those items</span>
+    <strong class="mono">{{ p.cost | rupees }}</strong></div>
+  <div class="card tile"><span class="muted">Profit</span>
+    <strong class="mono">{{ p.profit | rupees }}</strong></div>
+  <div class="card tile"><span class="muted">Profit margin</span>
+    <strong class="mono">{% if p.margin is not none %}{{ '%.1f' | format(p.margin) }}%{% else %}-{% endif %}</strong></div>
+</div>
+
+{% if p.unknown_revenue %}
+<div class="flash">{{ p.no_cost_count }} item{{ '' if p.no_cost_count == 1 else 's' }} sold for {{ p.unknown_revenue | rupees }} {{ 'has' if p.no_cost_count == 1 else 'have' }} no cost price, so {{ 'its' if p.no_cost_count == 1 else 'their' }} profit is not counted. Add the cost price in Inventory.</div>
+{% elif p.missing_cost_products %}
+<p class="muted">{{ p.missing_cost_products }} product{{ '' if p.missing_cost_products == 1 else 's' }} in Inventory still {{ 'has' if p.missing_cost_products == 1 else 'have' }} no cost price.</p>
+{% endif %}
+
+{% if p.rows %}
+<div class="card table-wrap">
+  <table>
+    <thead>
+      <tr><th>Product</th><th>Supplier</th><th class="num">Cost price</th><th class="num">Selling price</th>
+          <th class="num">Profit per item</th><th class="num">Sold</th><th class="num">Sales</th>
+          <th class="num">Cost</th><th class="num">Profit</th><th class="num">Margin</th></tr>
+    </thead>
+    <tbody>
+    {% for r in p.rows %}
+      <tr>
+        <td>{{ r.name }}{% if r.code %} <span class="muted">{{ r.code }}</span>{% endif %}{% if r.removed %} <span class="muted">(removed)</span>{% endif %}</td>
+        <td>{{ r.supplier }}</td>
+        <td class="num mono">{% if r.cost_price %}{{ r.cost_price | rupees }}{% elif not r.removed %}<a href="{{ url_for('inventory.edit', product_id=r.id) }}">Add</a>{% else %}-{% endif %}</td>
+        <td class="num mono">{% if r.price %}{{ r.price | rupees }}{% else %}-{% endif %}</td>
+        <td class="num mono">{% if r.per_item is not none %}{{ r.per_item | rupees }}{% else %}-{% endif %}</td>
+        <td class="num mono">{{ r.qty if r.qty else '-' }}</td>
+        <td class="num mono">{{ (r.revenue | rupees) if r.revenue else '-' }}</td>
+        <td class="num mono">{{ (r.cost | rupees) if r.cost else '-' }}</td>
+        <td class="num mono">{% if r.revenue %}{{ r.profit | rupees }}{% else %}-{% endif %}</td>
+        <td class="num mono">{% if r.margin is not none %}{{ '%.1f' | format(r.margin) }}%{% else %}-{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card empty"><p>No products yet. Add some in Inventory.</p></div>
+{% endif %}
+{% endblock %}

@@ -24,13 +24,14 @@ def create_app(test_config=None):
     db.init_app(app)
     app.register_blueprint(auth.bp)
 
-    from .routes import inventory, billing, bills as bills_routes, settings, home, customers
+    from .routes import inventory, billing, bills as bills_routes, settings, home, customers, profit
     app.register_blueprint(inventory.bp)
     app.register_blueprint(billing.bp)
     app.register_blueprint(bills_routes.bp)
     app.register_blueprint(settings.bp)
     app.register_blueprint(home.bp)
     app.register_blueprint(customers.bp)
+    app.register_blueprint(profit.bp)
 
     from .services.billing import bill_status
     app.jinja_env.globals["bill_status"] = bill_status

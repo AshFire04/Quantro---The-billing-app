@@ -224,3 +224,8 @@ th { font-size: .85em; color: var(--color-muted); font-weight: 600; }
 .page.medium { max-width: 900px; }
 .form-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 28px; }
 @media (max-width: 700px) { .form-cols { grid-template-columns: 1fr; } }
+
+.seg { display: inline-flex; border: 1px solid var(--color-border); border-radius: 10px; overflow: hidden; }
+.seg button { font: inherit; font-size: .85rem; padding: 6px 12px; border: 0; background: var(--color-surface); color: var(--color-text); cursor: pointer; }
+.seg button.active { background: var(--color-primary); color: var(--color-on-primary); }
+.pane-note { margin: 0 0 10px; }

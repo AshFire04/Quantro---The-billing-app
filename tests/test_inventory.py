@@ -72,7 +72,7 @@ def test_extra_product_details_are_saved_shown_and_optional(client):
     create(client)
     res = client.post("/inventory/new", data={
         "name": "Tray", "price": "450", "stock": "5", "low_stock_level": "2",
-        "hsn": "9403", "vendor": "Mehta Traders", "cost_price": "300.50", "gst_rate": "18"})
+        "hsn": "9403", "supplier": "Mehta Traders", "cost_price": "300.50", "gst_rate": "18"})
     assert res.status_code == 302
     page = client.get("/inventory/1/edit").data.decode()
     assert 'value="9403"' in page and "Mehta Traders" in page

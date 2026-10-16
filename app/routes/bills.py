@@ -1,17 +1,19 @@
-from flask import (Blueprint, abort, flash, g, redirect, render_template, request,
+from datetime import datetime
+
+from flask import (Blueprint, Response, abort, flash, g, redirect, render_template, request,
                    url_for)
 
 from ..auth import login_required
 from ..db import get_db
 from ..services.billing import (BillError, ORDER_SOURCES, PAYMENT_MODES,
                                 cancel_bill, receive_due)
+from ..services.export import bills_workbook
 
 bp = Blueprint("bills", __name__)
 
 
-@bp.route("/bills")
-@login_required
-def index():
+def filtered_bills():
+    """The shop's bills that match the search and filters on the page. Returns (bills, q, f)."""
     args = request.args
     q = args.get("q", "").strip()
     f = {key: args.get(key, "").strip()
@@ -43,7 +45,13 @@ def index():
         sql += " AND date(created_at) <= date(?)"
         params.append(f["date_to"])
     sql += " ORDER BY created_at DESC, id DESC"
-    bills = get_db().execute(sql, params).fetchall()
+    return get_db().execute(sql, params).fetchall(), q, f
+
+
+@bp.route("/bills")
+@login_required
+def index():
+    bills, q, f = filtered_bills()
     # What each bill was paid with, added up per way of paying: {bill id: {"UPI": paise, ...}}
     paid = {}
     if bills:
@@ -58,6 +66,17 @@ def index():
     return render_template("bills.html", bills=bills, q=q, f=f, has_any=has_any,
                            filtering=filtering, order_sources=ORDER_SOURCES, paid=paid,
                            payment_modes=PAYMENT_MODES)
+
+
+@bp.route("/bills/export.xlsx")
+@login_required
+def export():
+    """Excel file of the bills the page is showing (everything, when nothing is filtered)."""
+    bills, _, _ = filtered_bills()
+    name = f"quantro-bills-{datetime.now():%Y-%m-%d}.xlsx"
+    return Response(bills_workbook(get_db(), bills),
+                    mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
 
 @bp.route("/bills/<int:bill_id>")

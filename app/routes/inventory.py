@@ -61,7 +61,7 @@ def read_form(product_id=None):
         "name": f.get("name", "").strip(),
         "category": f.get("category", "").strip(),
         "hsn": f.get("hsn", "").strip(),
-        "vendor": f.get("vendor", "").strip(),
+        "supplier": f.get("supplier", "").strip(),
     }
     if values["hsn"] and not (values["hsn"].isdigit() and len(values["hsn"]) <= 8):
         return values, "The HSN/SAC number should be digits only, up to 8 of them"
@@ -114,11 +114,11 @@ def new():
             with db:
                 db.execute(
                     "INSERT INTO products (shop_id, code, name, category, price, "
-                    "stock, low_stock_level, hsn, vendor, cost_price, gst_rate) "
+                    "stock, low_stock_level, hsn, supplier, cost_price, gst_rate) "
                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (g.shop["id"], values["code"], values["name"], values["category"],
                      values["price"], values["stock"], values["low_stock_level"],
-                     values["hsn"], values["vendor"], values["cost_price"], values["gst_rate"]))
+                     values["hsn"], values["supplier"], values["cost_price"], values["gst_rate"]))
             return redirect(url_for("inventory.index"))
         values = request.form
     return render_template("product_form.html", product=values, editing=False)
@@ -138,10 +138,10 @@ def edit(product_id):
         with db:
             db.execute(
                 "UPDATE products SET code = ?, name = ?, category = ?, price = ?, "
-                "stock = ?, low_stock_level = ?, hsn = ?, vendor = ?, cost_price = ?, "
+                "stock = ?, low_stock_level = ?, hsn = ?, supplier = ?, cost_price = ?, "
                 "gst_rate = ? WHERE id = ? AND shop_id = ?",
                 (values["code"], values["name"], values["category"], values["price"],
-                 values["stock"], values["low_stock_level"], values["hsn"], values["vendor"],
+                 values["stock"], values["low_stock_level"], values["hsn"], values["supplier"],
                  values["cost_price"], values["gst_rate"], product_id, g.shop["id"]))
         return redirect(url_for("inventory.index"))
     product = dict(product, price=paise_to_input(product["price"]),

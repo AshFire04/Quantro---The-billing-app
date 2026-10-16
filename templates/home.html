@@ -64,7 +64,13 @@
 
 <div class="home-grid pies">
   <section class="card">
-    <div class="card-head"><h2>Sales against target</h2><span class="muted">{{ f.month_name }}</span></div>
+    <div class="card-head"><h2>Sales against target</h2>
+      <div class="seg" role="tablist" data-pane-group="sales">
+        <button type="button" class="active" data-pane="sales-target">Target</button>
+        <button type="button" data-pane="sales-profit">Profit</button>
+      </div></div>
+    <div data-pane-name="sales-target">
+    <p class="muted pane-note">{{ f.month_name }}</p>
     {% if f.target %}
     <div class="pie-row">
       <div class="pie-wrap">
@@ -81,10 +87,38 @@
     <p class="muted">You have not set a monthly target yet.</p>
     <a class="btn" href="{{ url_for('settings.index') }}">Set it in Shop Details</a>
     {% endif %}
+    </div>
+    <div data-pane-name="sales-profit" hidden>
+    {% set m = f.month_profit %}
+    <p class="muted pane-note">{{ f.month_name }} · how this month's sales divide into cost and profit</p>
+    {% if m.revenue %}
+    <div class="pie-row">
+      <div class="pie-wrap">
+        {{ pie([{'pct': (m.profit * 100 / m.revenue) | round(3) if m.profit > 0 else 0, 'color': 0}], 'Profit share of sales') }}
+        <div class="pie-centre mono">{{ (m.profit * 100 / m.revenue) | round | int }}%</div>
+      </div>
+      <ul class="legend">
+        <li><span class="swatch c0"></span>Profit <strong class="mono">{{ m.profit | rupees }}</strong></li>
+        <li><span class="swatch c-rest"></span>Cost of items <strong class="mono">{{ m.cost | rupees }}</strong></li>
+        <li class="muted">Sales counted <span class="mono">{{ m.revenue | rupees }}</span> · <a href="{{ url_for('profit.index') }}">Profit Statement</a></li>
+        {% if m.unknown_revenue %}<li class="muted">{{ m.unknown_revenue | rupees }} of sales left out: no cost price</li>{% endif %}
+      </ul>
+    </div>
+    {% else %}
+    <p class="muted">No profit to show yet. It needs sales this month of items with a cost price.</p>
+    <a class="btn" href="{{ url_for('inventory.index') }}">Add cost prices in Inventory</a>
+    {% endif %}
+    </div>
   </section>
 
   <section class="card">
-    <div class="card-head"><h2>Inventory by category</h2><span class="muted">Value of stock</span></div>
+    <div class="card-head"><h2>Inventory</h2>
+      <div class="seg" role="tablist" data-pane-group="inventory">
+        <button type="button" class="active" data-pane="inv-category">By category</button>
+        <button type="button" data-pane="inv-supplier">By supplier</button>
+      </div></div>
+    <div data-pane-name="inv-category">
+    <p class="muted pane-note">Value of stock in each category</p>
     {% if f.categories %}
     <div class="pie-row">
       <div class="pie-wrap">{{ pie(f.categories, 'Inventory by category') }}</div>
@@ -97,6 +131,23 @@
     {% else %}
     <p class="muted">No stock to show yet.</p>
     {% endif %}
+    </div>
+    <div data-pane-name="inv-supplier" hidden>
+    <p class="muted pane-note">Value of stock supplied by each supplier</p>
+    {% if f.suppliers %}
+    <div class="pie-row">
+      <div class="pie-wrap">{{ pie(f.suppliers, 'Inventory by supplier') }}</div>
+      <ul class="legend">
+        {% for s in f.suppliers %}
+        <li><span class="swatch c{{ s.color }}"></span>{{ s.label }} <strong class="mono">{{ s.value | rupees }}</strong> <span class="muted">{{ s.pct | round | int }}%</span></li>
+        {% endfor %}
+      </ul>
+    </div>
+    <p class="muted"><a href="{{ url_for('inventory.index') }}">Add suppliers in Inventory</a></p>
+    {% else %}
+    <p class="muted">No stock to show yet.</p>
+    {% endif %}
+    </div>
   </section>
 </div>
 
@@ -122,4 +173,18 @@
   <p class="muted">No bills yet. Your recent bills will show here.</p>
   {% endif %}
 </section>
+<script>
+// The little tab buttons on the pie cards: show one pane, hide the other.
+for (const group of document.querySelectorAll(".seg")) {
+  const card = group.closest(".card");
+  for (const button of group.querySelectorAll("button")) {
+    button.onclick = () => {
+      for (const b of group.querySelectorAll("button")) b.classList.toggle("active", b === button);
+      for (const pane of card.querySelectorAll("[data-pane-name]")) {
+        pane.hidden = pane.dataset.paneName !== button.dataset.pane;
+      }
+    };
+  }
+}
+</script>
 {% endblock %}
