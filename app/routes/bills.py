@@ -43,11 +43,19 @@ def index():
         params.append(f["date_to"])
     sql += " ORDER BY created_at DESC, id DESC"
     bills = get_db().execute(sql, params).fetchall()
+    # What each bill was paid with, added up per way of paying: {bill id: {"UPI": paise, ...}}
+    paid = {}
+    if bills:
+        marks = ",".join("?" * len(bills))
+        for p in get_db().execute(f"SELECT bill_id, mode, amount FROM payments "
+                                  f"WHERE bill_id IN ({marks})", [b["id"] for b in bills]):
+            by_mode = paid.setdefault(p["bill_id"], {})
+            by_mode[p["mode"]] = by_mode.get(p["mode"], 0) + p["amount"]
     has_any = get_db().execute("SELECT 1 FROM bills WHERE shop_id = ?",
                                (g.shop["id"],)).fetchone() is not None
     filtering = bool(q or any(f.values()))
     return render_template("bills.html", bills=bills, q=q, f=f, has_any=has_any,
-                           filtering=filtering, order_sources=ORDER_SOURCES,
+                           filtering=filtering, order_sources=ORDER_SOURCES, paid=paid,
                            payment_modes=PAYMENT_MODES)
 
 

@@ -187,3 +187,21 @@ def test_status_shows_paid_payment_due_or_cancelled(client):
     # Once the due amount is received, the bill turns Paid.
     client.post("/bills/2/payment-received", data={"mode": "UPI"})
     assert badge("Due Dan") == ("paid", "Paid")
+
+def test_past_bills_shows_upi_cash_netbanking_and_due_for_every_bill(client):
+    create(client)
+    add(client, name="Tray", price="450", stock="20")
+    client.post("/billing/save", json={            # bill 1: ₹900, ₹300 due, ₹400 cash + ₹200 UPI
+        "items": [{"product_id": 1, "quantity": 2}], "customer": "Asha", "order_source": "Stall",
+        "due_amount": "300",
+        "payments": [{"mode": "Cash", "amount": "400"}, {"mode": "UPI", "amount": "200"}]})
+    make_bill(client, "Ravi")                       # bill 2: ₹450 cash, nothing due
+    page = client.get("/bills").data.decode()
+    assert ">Due</th>" in page and ">UPI</th>" in page and ">Net-banking</th>" in page
+    rows = {}
+    for row in page.split("<tr>")[2:]:
+        cells = [c.split("</td>")[0].split(">")[-1].strip() for c in row.split("<td")[1:]]
+        rows[cells[2]] = cells
+    asha, ravi = rows["Asha"], rows["Ravi"]
+    assert asha[-4:] == ["₹200.00", "₹400.00", "₹0.00", "₹300.00"]
+    assert ravi[-4:] == ["₹0.00", "₹450.00", "₹0.00", "₹0.00"]

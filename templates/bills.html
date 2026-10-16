@@ -44,7 +44,7 @@
   <div class="card table-wrap">
     <table>
       <thead>
-        <tr><th>Bill</th><th>Date</th><th>Customer</th><th>Place of sale</th><th class="num">Amount</th><th>Due</th><th>Status</th></tr>
+        <tr><th>Bill</th><th>Date</th><th>Customer</th><th>Place of sale</th><th class="num">Amount</th><th>Status</th><th class="num">UPI</th><th class="num">Cash</th><th class="num">Net-banking</th><th class="num">Due</th></tr>
       </thead>
       <tbody>
       {% for b in bills %}
@@ -54,10 +54,13 @@
           <td>{{ b.customer_name }}</td>
           <td>{{ b.place_of_sale }}</td>
           <td class="num mono">{{ b.total | rupees }}</td>
-          <td class="mono">{% if b.due_amount %}{{ b.due_amount | rupees }}{% if b.due_date %} by {{ b.due_date | fdate }}{% endif %}{% endif %}</td>
           {% set label, kind = bill_status(b) %}
           <td><span class="badge status-{{ kind }}">{{ label }}</span>
             {% if b.replaced_by_number %}<span class="muted">replaced by #{{ b.replaced_by_number }}</span>{% endif %}</td>
+          {% for mode in ("UPI", "Cash", "Net-banking") %}
+          <td class="num mono">{{ (paid.get(b.id, {}).get(mode, 0)) | rupees }}</td>
+          {% endfor %}
+          <td class="num mono">{{ (b.due_amount if b.status == 'Saved' else 0) | rupees }}</td>
         </tr>
       {% endfor %}
       </tbody>
