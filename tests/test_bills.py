@@ -68,7 +68,7 @@ def test_filters(client):
         body = {"items": [{"product_id": 1, "quantity": 1}], "customer": customer,
                 "order_source": source, "payments": [{"mode": mode}]}
         if due:
-            body.update(due_amount=due, due_date="2999-01-31")
+            body.update(due_amount=due)
         return client.post("/billing/save", json=body)
 
     bill("Asha", "Website", "UPI")
@@ -84,7 +84,7 @@ def test_filters(client):
     assert names("mode=Cash") == ["Ravi"]
     assert names("mode=Net-banking") == ["Meena"]
     assert names("due=due") == ["Ravi"]
-    assert "₹100.00 by 31 Jan 2999" in client.get("/bills?due=due").data.decode()
+    assert "₹100.00" in client.get("/bills?due=due").data.decode()
     assert names("source=Website&mode=UPI") == ["Asha"]            # filters combine
     assert names("source=Website&mode=Cash") == []
     assert sorted(names("date_from=2000-01-01&date_to=2999-12-31")) == ["Asha", "Meena", "Ravi"]
@@ -97,7 +97,7 @@ def test_marking_a_due_payment_received(client):
     add(client, name="Tray", price="450", stock="20")
     client.post("/billing/save", json={
         "items": [{"product_id": 1, "quantity": 2}], "customer": "Ravi", "order_source": "Stall",
-        "payments": [{"mode": "Cash"}], "due_amount": "400", "due_date": "2999-01-31"})
+        "payments": [{"mode": "Cash"}], "due_amount": "400"})
     page = client.get("/bills/1").data.decode()
     assert "Payment due: ₹400.00" in page and "Mark payment received" in page
     # Choosing no mode, or an 'Other' without text, is refused and changes nothing.
@@ -120,7 +120,7 @@ def test_cannot_clear_another_shops_due(client):
     add(client, name="Tray", price="450", stock="20")
     client.post("/billing/save", json={
         "items": [{"product_id": 1, "quantity": 1}], "customer": "Ravi", "order_source": "Stall",
-        "payments": [{"mode": "Cash"}], "due_amount": "100", "due_date": "2999-01-31"})
+        "payments": [{"mode": "Cash"}], "due_amount": "100"})
     client.get("/logout")
     create(client, login="other@example.com", shop="Other shop")
     client.post("/bills/1/payment-received", data={"mode": "UPI"})
@@ -135,12 +135,12 @@ def test_dates_show_as_day_short_month_year_without_time(client):
     add(client, name="Tray", price="450", stock="20")
     client.post("/billing/save", json={
         "items": [{"product_id": 1, "quantity": 1}], "customer": "Ravi", "order_source": "Stall",
-        "payments": [{"mode": "Cash"}], "due_amount": "100", "due_date": "2999-01-05"})
+        "payments": [{"mode": "Cash"}], "due_amount": "100"})
     today = datetime.now().strftime("%d %b %Y")
     for url in ("/bills", "/bills/1"):
         page = client.get(url).data.decode()
-        assert today in page and "05 Jan 2999" in page
-        assert "2999-01-05" not in page and datetime.now().strftime("%Y-%m-%dT") not in page
+        assert today in page
+        assert datetime.now().strftime("%Y-%m-%dT") not in page
     client.post("/bills/1/payment-received", data={"mode": "UPI"})
     assert f"(received {today})" in client.get("/bills/1").data.decode()
 
@@ -168,7 +168,7 @@ def test_status_shows_paid_payment_due_or_cancelled(client):
         assert client.post("/billing/save", json=body).status_code == 200
 
     bill("Paid Pat")                                              # bill 1
-    bill("Due Dan", due_amount="100", due_date="2999-01-31")      # bill 2
+    bill("Due Dan", due_amount="100")      # bill 2
     bill("Cancelled Cal")                                         # bill 3
     client.post("/bills/3/cancel")
 

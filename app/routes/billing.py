@@ -3,8 +3,9 @@ from flask import (Blueprint, flash, g, jsonify, redirect, render_template, requ
 
 from ..auth import login_required
 from ..db import get_db
-from ..services.billing import (BillError, ORDER_SOURCES, PAYMENT_MODES,
+from ..services.billing import (BillError, CUSTOMER_TYPES, ORDER_SOURCES, PAYMENT_MODES,
                                 save_bill)
+from ..services.states import DEFAULT_PLACE, PLACES
 from ..services.money import paise_to_input
 
 bp = Blueprint("billing", __name__)
@@ -33,6 +34,8 @@ def index():
     return render_template("billing.html", products=shop_products(),
                            next_number=g.shop["next_invoice_number"],
                            payment_modes=PAYMENT_MODES, order_sources=ORDER_SOURCES,
+                           places=PLACES, default_place=DEFAULT_PLACE,
+                           customer_types=CUSTOMER_TYPES,
                            editing=None, prefill=None, skipped=[], offers=active_offers())
 
 
@@ -89,11 +92,14 @@ def edit(bill_id):
         "shipping": paise_to_input(old["shipping"]) if old["shipping"] else "",
         "items": items, "payments": payments, "offer_ids": picked,
         "due_amount": paise_to_input(old["due_amount"]) if old["due_amount"] else "",
-        "due_date": old["due_date"],
+        "customer_type": old["customer_type"] or "Retail",
+        "order_date": old["created_at"][:10],
     }
     return render_template("billing.html", products=products,
                            next_number=g.shop["next_invoice_number"],
                            payment_modes=PAYMENT_MODES, order_sources=ORDER_SOURCES,
+                           places=PLACES, default_place=DEFAULT_PLACE,
+                           customer_types=CUSTOMER_TYPES,
                            editing=old, prefill=prefill, skipped=skipped, offers=offers)
 
 
@@ -117,7 +123,8 @@ def save():
                             payments=data.get("payments"),
                             customer_location=str(data.get("location", "")),
                             due_amount=str(data.get("due_amount", "")),
-                            due_date=str(data.get("due_date", "")),
+                            customer_type=str(data.get("customer_type", "Retail")),
+                            order_date=str(data.get("order_date", "")),
                             whole_discount=data.get("whole_discount", ""),
                             shipping=data.get("shipping", ""),
                             replaces=replaces, offer_ids=data.get("offer_ids") or [])

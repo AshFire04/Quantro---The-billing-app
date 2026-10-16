@@ -248,7 +248,7 @@ def test_whole_bill_offer_needs_its_minimum_after_item_discounts(offers_shop):
     exactly = [{"product_id": 1, "quantity": 5, "discount": "0"}]      # ₹2,250 again, but ...
     assert price(offers_shop, exactly, [offer])["total"] == 225000
     just_enough = [{"product_id": 2, "quantity": 3}]                   # 3 x 299.50 = 898.50: far below
-    assert price(offers_shop, just_enough, [offer])["total"] == 89850
+    assert price(offers_shop, just_enough, [offer])["total"] == 89900
 
 
 def test_a_whole_bill_offer_at_exactly_the_minimum_qualifies(offers_shop):
@@ -271,7 +271,7 @@ def test_item_offer_then_whole_bill_offer_together(offers_shop):
     items = [{"product_id": 1, "quantity": 2}, {"product_id": 2, "quantity": 1}]
     # trays 900 - 10% = 810; + 299.50 = 1109.50 (above ₹1,000); 5% off = 1054.025 -> 1054.03
     result = price(offers_shop, items, [tray, big])
-    assert result["total"] == 105403 and result["offers_applied"] == ["Tray sale", "Big bill"]
+    assert result["total"] == 105400 and result["offers_applied"] == ["Tray sale", "Big bill"]
 
 
 def test_unavailable_offers_are_refused(offers_shop):

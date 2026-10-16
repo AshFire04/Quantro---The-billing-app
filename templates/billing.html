@@ -27,7 +27,12 @@
   <section class="card bill-panel" aria-label="Bill">
     <div class="bill-head">
       <h1>Bill #{{ next_number }}{% if editing %} <small class="muted">replaces #{{ editing.invoice_number }}</small>{% endif %}</h1>
-      <button type="button" id="clear" class="btn">Clear</button>
+      <div class="head-actions">
+        <label class="order-date">Order placed on:
+          <input id="order-date" type="date">
+        </label>
+        <button type="button" id="clear" class="btn">Clear</button>
+      </div>
     </div>
 
     <div class="bill-form">
@@ -40,9 +45,14 @@
       <label class="f">Customer location (optional)
         <input id="location" placeholder="e.g. Indiranagar, Bengaluru">
       </label>
-      <label class="f">Place of sale (state or country)
-        <input id="place" placeholder="e.g. Karnataka">
-      </label>
+      <div class="f">
+        <label for="place">State</label>
+        <select id="place">
+          {% for s in places %}<option{% if s == default_place %} selected{% endif %}>{{ s }}</option>{% endfor %}
+          <option>Other</option>
+        </select>
+        <input id="place-other" class="other-input" placeholder="Type the state or country" hidden>
+      </div>
       <div class="f">
         <label for="source">Order came through</label>
         <select id="source">
@@ -50,6 +60,14 @@
           {% for s in order_sources %}<option>{{ s }}</option>{% endfor %}
         </select>
         <input id="source-other" class="other-input" placeholder="Type the order source" hidden>
+      </div>
+      <div class="f">
+        <span>Customer type</span>
+        <div class="radio-row">
+          {% for t in customer_types %}
+          <label class="radio"><input type="radio" name="customer-type" value="{{ t }}"{% if loop.first %} checked{% endif %}> {{ t }}</label>
+          {% endfor %}
+        </div>
       </div>
     </div>
 
@@ -67,6 +85,7 @@
       <input id="whole-discount" class="mini-input" inputmode="decimal" placeholder="0">
       <label for="shipping">Shipping &amp; handling (₹, optional)</label>
       <input id="shipping" class="mini-input" inputmode="decimal" placeholder="0">
+      <div>Round off</div><div class="v mono" id="round-off">₹0</div>
       <div class="sum-total"><span>Total</span><span class="mono" id="total">₹0</span></div>
     </div>
 
@@ -95,9 +114,6 @@
       <div id="due-panel" hidden>
         <label class="f">Amount still to be paid (₹)
           <input id="due-amount" inputmode="decimal" placeholder="e.g. 500">
-        </label>
-        <label class="f">Date the payment is due
-          <input id="due-date" type="date">
         </label>
       </div>
       <p id="pay-now" class="muted" hidden></p>

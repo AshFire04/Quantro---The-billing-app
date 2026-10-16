@@ -10,6 +10,7 @@ from .money import format_rupees, rupees_to_paise, take_percent_off
 
 PAYMENT_MODES = ["UPI", "Cash", "Net-banking", "Other"]
 ORDER_SOURCES = ["Store (walk-in)", "Stall", "Website", "Other"]
+CUSTOMER_TYPES = ["Retail", "B2B"]
 
 
 class BillError(Exception):
@@ -55,23 +56,30 @@ def parse_shipping(value):
         raise BillError("Enter shipping & handling as an amount, like 80 or 80.50")
 
 
-def check_due(due_amount, due_date, total):
-    """The part of the bill still to be paid, and when. Returns (paise, 'YYYY-MM-DD' or '')."""
+def check_due(due_amount, total):
+    """The part of the bill still to be paid, in paise."""
     try:
         due = rupees_to_paise(due_amount) if str(due_amount or "").strip() else 0
     except ValueError:
         raise BillError("Enter the amount due as a number, like 500 or 500.50")
-    if due == 0:
-        return 0, ""
     if due > total:
         raise BillError("The amount due can't be more than the bill total")
+    return due
+
+
+def check_order_date(order_date):
+    """The day the order was placed. Blank means today; a day in the future is refused."""
+    text = str(order_date or "").strip()
+    today = datetime.now().date()
+    if not text:
+        return today
     try:
-        date = datetime.strptime(str(due_date or "").strip(), "%Y-%m-%d").date()
+        day = datetime.strptime(text, "%Y-%m-%d").date()
     except ValueError:
-        raise BillError("Please choose the date the payment is due")
-    if date < datetime.now().date():
-        raise BillError("The due date can't be in the past")
-    return due, date.isoformat()
+        raise BillError("Please choose the date the order was placed")
+    if day > today:
+        raise BillError("The order date can't be in the future")
+    return day
 
 
 def check_payments(payments, total):
@@ -199,9 +207,10 @@ def price_details(db, shop_id, items, whole_discount_pct=None, shipping=0, offer
         whole_discount_pct = best["pct"] if best else Decimal(0)
         if best and best["pct"] > 0:
             applied[best["id"]] = best["name"]
-    total = take_percent_off(subtotal, whole_discount_pct) + shipping
-    return {"lines": lines, "total": total, "whole_pct": whole_discount_pct,
-            "offers_applied": list(applied.values())}
+    exact = take_percent_off(subtotal, whole_discount_pct) + shipping
+    total = (exact + 50) // 100 * 100               # rounded off to the nearest rupee, half up
+    return {"lines": lines, "total": total, "round_off": total - exact,
+            "whole_pct": whole_discount_pct, "offers_applied": list(applied.values())}
 
 
 def price_bill(db, shop_id, items, whole_discount_pct=Decimal(0), shipping=0, offers=()):
@@ -211,8 +220,9 @@ def price_bill(db, shop_id, items, whole_discount_pct=Decimal(0), shipping=0, of
 
 def save_bill(db, shop_id, items, customer_name, customer_phone="", place_of_sale="",
               order_source="", order_source_other="", payments=None,
-              customer_location="", due_amount="", due_date="", whole_discount="",
-              shipping="", replaces=None, offer_ids=()):
+              customer_location="", due_amount="", whole_discount="",
+              shipping="", replaces=None, offer_ids=(), customer_type="Retail",
+              order_date=""):
     """Save a bill and lower the stock, all in one go. Returns the new bill's id.
 
     With `replaces` (the id of a saved bill), this is an edit: the old bill's items go back
@@ -231,6 +241,11 @@ def save_bill(db, shop_id, items, customer_name, customer_phone="", place_of_sal
     typed_whole = str(whole_discount if whole_discount is not None else "").strip()
     whole_pct = parse_percent(typed_whole, "The whole-bill discount") if typed_whole else None
     shipping_paise = parse_shipping(shipping)
+    if customer_type not in CUSTOMER_TYPES:
+        raise BillError("Please choose Retail or B2B")
+    day = check_order_date(order_date)
+    # The chosen day with the time of saving, so bills on the same day stay in order.
+    created_at = datetime.combine(day, datetime.now().time()).isoformat(timespec="seconds")
     try:
         with db:  # one transaction: commits at the end, or undoes everything on an error
             if replaces is not None:
@@ -239,7 +254,7 @@ def save_bill(db, shop_id, items, customer_name, customer_phone="", place_of_sal
             offers = load_offers(db, shop_id, offer_ids)
             priced = price_details(db, shop_id, items, whole_pct, shipping_paise, offers)
             lines, total = priced["lines"], priced["total"]
-            due, due_on = check_due(due_amount, due_date, total)
+            due = check_due(due_amount, total)
             payments = check_payments(payments, total - due)
             shop = db.execute("SELECT next_invoice_number FROM shops WHERE id = ?",
                               (shop_id,)).fetchone()
@@ -249,14 +264,16 @@ def save_bill(db, shop_id, items, customer_name, customer_phone="", place_of_sal
             bill_id = db.execute(
                 "INSERT INTO bills (shop_id, invoice_number, created_at, customer_name, "
                 "customer_phone, customer_location, place_of_sale, order_source, total, "
-                "due_amount, due_date, whole_discount_pct, shipping, replaces, offer_ids, "
-                "offers_applied) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (shop_id, number, datetime.now().isoformat(timespec="seconds"),
+                "due_amount, whole_discount_pct, shipping, replaces, offer_ids, "
+                "offers_applied, customer_type, round_off) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (shop_id, number, created_at,
                  customer_name, customer_phone, customer_location.strip(),
-                 place_of_sale.strip(), source, total, due, due_on,
+                 place_of_sale.strip(), source, total, due,
                  float(priced["whole_pct"]), shipping_paise, replaces,
                  ",".join(str(o["id"]) for o in offers),
-                 ", ".join(priced["offers_applied"]))).lastrowid
+                 ", ".join(priced["offers_applied"]), customer_type,
+                 priced["round_off"])).lastrowid
             if replaces is not None:
                 db.execute("UPDATE bills SET status = 'Cancelled', replaced_by = ? "
                            "WHERE id = ?", (bill_id, replaces))

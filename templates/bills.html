@@ -53,7 +53,7 @@
           <td>{{ b.customer_name }}</td>
           <td>{{ b.place_of_sale }}</td>
           <td class="num mono">{{ b.total | rupees }}</td>
-          <td class="mono">{% if b.due_amount %}{{ b.due_amount | rupees }} by {{ b.due_date | fdate }}{% endif %}</td>
+          <td class="mono">{% if b.due_amount %}{{ b.due_amount | rupees }}{% if b.due_date %} by {{ b.due_date | fdate }}{% endif %}{% endif %}</td>
           {% set label, kind = bill_status(b) %}
           <td><span class="badge status-{{ kind }}">{{ label }}</span>
             {% if b.replaced_by_number %}<span class="muted">replaced by #{{ b.replaced_by_number }}</span>{% endif %}</td>

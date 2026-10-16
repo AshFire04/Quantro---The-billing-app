@@ -33,7 +33,7 @@ def shop(app, client):
 def test_price_is_quantity_times_rate_in_paise(shop):
     lines, total = price_bill(shop, 1, [{"product_id": 1, "quantity": 2},
                                         {"product_id": 2, "quantity": 1}])
-    assert total == 2 * 45000 + 29950
+    assert total == 120000                      # ₹1,199.50 rounded off to the rupee
     assert lines[0]["line_amount"] == 90000
 
 
@@ -181,25 +181,24 @@ def test_customer_location_is_saved_and_optional(shop):
 
 def test_part_payment_with_the_rest_due_later(shop):
     items = [{"product_id": 1, "quantity": 2}]                      # total ₹900
-    save(shop, items, "Asha", payments=[{"mode": "UPI"}], due_amount="400", due_date="2999-01-31")
-    bill = shop.execute("SELECT due_amount, due_date FROM bills").fetchone()
-    assert (bill["due_amount"], bill["due_date"]) == (40000, "2999-01-31")
+    save(shop, items, "Asha", payments=[{"mode": "UPI"}], due_amount="400")
+    assert shop.execute("SELECT due_amount FROM bills").fetchone()[0] == 40000
     rows = shop.execute("SELECT mode, amount FROM payments").fetchall()
     assert [tuple(r) for r in rows] == [("UPI", 50000)]             # ₹900 - ₹400 paid now
 
 
 def test_split_payment_adds_up_to_what_is_paid_now(shop):
     items = [{"product_id": 1, "quantity": 2}]                      # ₹900, ₹300 due: ₹600 now
-    save(shop, items, "Asha", due_amount="300", due_date="2999-01-31",
+    save(shop, items, "Asha", due_amount="300",
          payments=[{"mode": "Cash", "amount": "400"}, {"mode": "UPI", "amount": "200"}])
     with pytest.raises(BillError, match="paid now"):
-        save(shop, items, "Asha", due_amount="300", due_date="2999-01-31",
+        save(shop, items, "Asha", due_amount="300",
              payments=[{"mode": "Cash", "amount": "500"}, {"mode": "UPI", "amount": "400"}])
 
 
 def test_whole_bill_due_needs_no_payment_mode(shop):
     save(shop, [{"product_id": 1, "quantity": 1}], "Asha", payments=[],
-         due_amount="450", due_date="2999-01-31")
+         due_amount="450")
     assert shop.execute("SELECT COUNT(*) FROM payments").fetchone()[0] == 0
     assert stock_of(shop, "Tray") == 9                               # stock still drops
 
@@ -207,16 +206,45 @@ def test_whole_bill_due_needs_no_payment_mode(shop):
 def test_due_rules(shop):
     items = [{"product_id": 1, "quantity": 1}]                      # ₹450
     for kwargs, message in [
-        ({"due_amount": "500", "due_date": "2999-01-31"}, "more than the bill total"),
-        ({"due_amount": "100", "due_date": ""}, "date the payment is due"),
-        ({"due_amount": "100", "due_date": "31/01/2999"}, "date the payment is due"),
-        ({"due_amount": "100", "due_date": "2000-01-01"}, "in the past"),
-        ({"due_amount": "abc", "due_date": "2999-01-31"}, "as a number"),
+        ({"due_amount": "500"}, "more than the bill total"),
+        ({"due_amount": "abc"}, "as a number"),
     ]:
         with pytest.raises(BillError, match=message):
             save(shop, items, "Asha", **kwargs)
     assert stock_of(shop, "Tray") == 10
-    save(shop, items, "Asha", due_amount="", due_date="")           # no due: fine
+    save(shop, items, "Asha", due_amount="")                        # no due: fine
+
+
+def test_total_is_rounded_to_the_nearest_rupee(shop):
+    # 10% off 2 trays (₹900) is exact; 7.5% off ₹450 is ₹416.25, which rounds to ₹416
+    save(shop, [{"product_id": 1, "quantity": 1}], "Asha", whole_discount="7.5")
+    bill = shop.execute("SELECT total, round_off FROM bills").fetchone()
+    assert (bill["total"], bill["round_off"]) == (41600, -25)
+    # ₹450 less 5.5% is ₹425.25, rounds down; 8.5% is ₹411.75, rounds up (half cases go up)
+    save(shop, [{"product_id": 1, "quantity": 1}], "Ravi", whole_discount="8.5")
+    assert tuple(shop.execute("SELECT total, round_off FROM bills WHERE id = 2").fetchone()) == (41200, 25)
+    save(shop, [{"product_id": 1, "quantity": 1}], "Meena", whole_discount="0", shipping="0.50")
+    assert tuple(shop.execute("SELECT total, round_off FROM bills WHERE id = 3").fetchone()) == (45100, 50)
+
+
+def test_order_date_and_customer_type(shop):
+    items = [{"product_id": 1, "quantity": 1}]
+    save(shop, items, "Asha")
+    row = shop.execute("SELECT created_at, customer_type FROM bills").fetchone()
+    from datetime import datetime, timedelta
+    assert row["created_at"][:10] == datetime.now().strftime("%Y-%m-%d")
+    assert row["customer_type"] == "Retail"
+    earlier = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    save(shop, items, "Ravi", order_date=earlier, customer_type="B2B")
+    row = shop.execute("SELECT created_at, customer_type FROM bills WHERE id = 2").fetchone()
+    assert row["created_at"][:10] == earlier and row["customer_type"] == "B2B"
+    later = (datetime.now() + timedelta(days=2)).strftime("%Y-%m-%d")
+    for kwargs, message in [({"order_date": later}, "in the future"),
+                            ({"order_date": "10/10/2026"}, "date the order was placed"),
+                            ({"customer_type": "Wholesale"}, "Retail or B2B")]:
+        with pytest.raises(BillError, match=message):
+            save(shop, items, "Asha", **kwargs)
+    assert stock_of(shop, "Tray") == 8                              # failed saves changed nothing
 
 
 # ---- Discounts and shipping ----------------------------------------------------------
@@ -235,14 +263,14 @@ def test_item_discount(shop):
 
 def test_whole_bill_discount(shop):
     items = [{"product_id": 1, "quantity": 2}, {"product_id": 2, "quantity": 1}]
-    assert total_of(shop, items, whole="5") == 113953   # 900 + 299.50 = 1199.50; 5% off = 1139.525 -> 1139.53
+    assert total_of(shop, items, whole="5") == 114000   # 1199.50 less 5% = 1139.525 -> 1139.53 -> ₹1,140
 
 
 def test_item_discount_comes_first_then_whole_bill_discount(shop):
     # 10% off the trays (900 -> 810), cushion full price (299.50): subtotal 1109.50.
-    # 5% off the whole bill: 1109.50 x 0.95 = 1054.025 -> 1054.03
+    # 5% off the whole bill: 1109.50 x 0.95 = 1054.025 -> 1054.03 -> rounded off to ₹1,054
     items = [{"product_id": 1, "quantity": 2, "discount": "10"}, {"product_id": 2, "quantity": 1}]
-    assert total_of(shop, items, whole="5") == 105403
+    assert total_of(shop, items, whole="5") == 105400
 
 
 def test_shipping_is_added_last_and_not_discounted(shop):
@@ -251,11 +279,13 @@ def test_shipping_is_added_last_and_not_discounted(shop):
 
 
 def test_rounding_is_half_up_to_the_paisa(shop):
-    # ₹299.50 less 12.5% = 262.058... paise-exact: 29950 x 0.875 = 26206.25 -> 26206
-    assert total_of(shop, [{"product_id": 2, "quantity": 1, "discount": "12.5"}]) == 26206
-    # exactly half a paisa rounds up: 45000 x 0.99995 would need 3 decimals, so use 29950 x 0.5 = 14975
-    assert total_of(shop, [{"product_id": 2, "quantity": 1, "discount": "50"}]) == 14975
-    assert total_of(shop, [{"product_id": 2, "quantity": 1, "discount": "99.99"}]) == 3   # 2.995 -> 3
+    # Each line is rounded to the paisa; only the bill total is then rounded to the rupee.
+    def line_of(discount):
+        lines, _ = price_bill(shop, 1, [{"product_id": 2, "quantity": 1, "discount": discount}])
+        return lines[0]["line_amount"]
+    assert line_of("12.5") == 26206          # 29950 x 0.875 = 26206.25
+    assert line_of("50") == 14975
+    assert line_of("99.99") == 3             # 2.995 -> 3
 
 
 def test_one_hundred_percent_off_is_allowed(shop):
@@ -274,11 +304,11 @@ def test_saving_stores_the_discounts_and_shipping(shop):
                    whole_discount="5", shipping="80")
     bill = shop.execute("SELECT * FROM bills WHERE id = ?", (bill_id,)).fetchone()
     assert (bill["whole_discount_pct"], bill["shipping"]) == (5, 8000)
-    assert bill["total"] == 105403 + 8000
+    assert bill["total"] == 105400 + 8000                       # ₹1,054.03 + ₹80, rounded off
     lines = shop.execute("SELECT line_discount_pct, line_amount FROM bill_lines "
                          "WHERE bill_id = ? ORDER BY id", (bill_id,)).fetchall()
     assert [tuple(l) for l in lines] == [(10, 81000), (0, 29950)]
-    assert shop.execute("SELECT amount FROM payments").fetchone()[0] == 105403 + 8000
+    assert shop.execute("SELECT amount FROM payments").fetchone()[0] == 105400 + 8000
 
 
 @pytest.mark.parametrize("kwargs, message", [
@@ -295,7 +325,7 @@ def test_bad_whole_discount_or_shipping_is_refused(shop, kwargs, message):
 
 def test_due_and_split_use_the_discounted_total(shop):
     items = [{"product_id": 1, "quantity": 2, "discount": "10"}]    # 810
-    save(shop, items, "Asha", whole_discount="10", due_amount="100", due_date="2999-01-31",
+    save(shop, items, "Asha", whole_discount="10", due_amount="100",
          payments=[{"mode": "Cash", "amount": "300"}, {"mode": "UPI", "amount": "329"}])  # 729 - 100
 
 
@@ -310,7 +340,7 @@ def test_discounts_through_the_website_and_on_the_saved_bill(client):
     assert "₹900.00" in page and "₹810.00" in page and "10% off" in page   # original, then discounted
     assert "Whole-bill discount (5%)" in page and "−₹40.50" in page
     assert "Shipping &amp; handling" in page and "₹80.00" in page
-    assert "₹849.50" in page                                               # 810 - 40.50 + 80
+    assert "Round off" in page and "+0.50" in page and "₹850.00" in page   # 810 - 40.50 + 80 = 849.50
     bad = client.post("/billing/save", json={
         "items": [{"product_id": 1, "quantity": 1, "discount": "250"}], "customer": "Asha",
         "order_source": "Stall", "payments": CASH})

@@ -42,7 +42,9 @@ CREATE TABLE IF NOT EXISTS bills (
     customer_phone TEXT NOT NULL DEFAULT '',
     customer_location TEXT NOT NULL DEFAULT '',
     due_amount INTEGER NOT NULL DEFAULT 0,  -- paise still to be paid (0 = paid in full)
-    due_date TEXT NOT NULL DEFAULT '',      -- when the rest is expected (YYYY-MM-DD)
+    due_date TEXT NOT NULL DEFAULT '',      -- old bills only: when the rest was expected
+    customer_type TEXT NOT NULL DEFAULT 'Retail',  -- Retail or B2B
+    round_off INTEGER NOT NULL DEFAULT 0,   -- paise added or taken off to reach a whole rupee
     place_of_sale TEXT NOT NULL DEFAULT '',
     order_source TEXT NOT NULL DEFAULT '',  -- Store (walk-in), Stall, Website or Other: ...
     whole_discount_pct REAL NOT NULL DEFAULT 0,
@@ -115,10 +117,11 @@ def init_db():
     columns = [row["name"] for row in db.execute("PRAGMA table_info(bills)")]
     added = {"customer_phone": "TEXT", "order_source": "TEXT", "customer_location": "TEXT",
              "due_date": "TEXT", "due_amount": "INTEGER", "offer_ids": "TEXT",
-             "offers_applied": "TEXT"}
+             "offers_applied": "TEXT", "round_off": "INTEGER", "customer_type": "TEXT"}
     for name, kind in added.items():
         if name not in columns:
-            default = "0" if kind == "INTEGER" else "''"
+            default = ("0" if kind == "INTEGER" else "'Retail'" if name == "customer_type"
+                       else "''")
             db.execute(f"ALTER TABLE bills ADD COLUMN {name} {kind} NOT NULL DEFAULT {default}")
     shop_columns = [row["name"] for row in db.execute("PRAGMA table_info(shops)")]
     if "monthly_target" not in shop_columns:

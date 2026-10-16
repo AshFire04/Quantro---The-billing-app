@@ -50,9 +50,8 @@ def test_cancelled_bills_are_left_out(shop):
 
 
 def test_payments_pending_adds_up_the_dues(shop):
-    due = (date.today() + timedelta(days=5)).isoformat()
-    save(shop, [{"product_id": 1, "quantity": 2}], "Asha", due_amount="300", due_date=due)
-    save(shop, [{"product_id": 1, "quantity": 1}], "Ravi", due_amount="100", due_date=due)
+    save(shop, [{"product_id": 1, "quantity": 2}], "Asha", due_amount="300")
+    save(shop, [{"product_id": 1, "quantity": 1}], "Ravi", due_amount="100")
     save(shop, [{"product_id": 2, "quantity": 1}], "Paid in full")
     f = home_figures(shop, 1)
     assert f["pending_amount"] == 40000 and f["pending_customers"] == 2

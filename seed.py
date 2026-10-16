@@ -56,8 +56,7 @@ BILLS = [
     (0, "Priya Nair", [("KA37", 1), ("CU12", 1), ("CR01", 1)],
      {"order_source": "Store (walk-in)", "whole_discount": "5"}),
     (0, "Meena Stores", [("TW02", 6), ("TB04", 4)],
-     {"order_source": "Store (walk-in)", "due_amount": "1200",
-      "due_date": (datetime.now() + timedelta(days=10)).strftime("%Y-%m-%d")}),
+     {"order_source": "Store (walk-in)", "due_amount": "1200", "customer_type": "B2B"}),
 ]
 
 

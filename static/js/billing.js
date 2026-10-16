@@ -4,6 +4,7 @@
 const products = JSON.parse(document.getElementById("products-data").textContent);
 const byId = Object.fromEntries(products.map(p => [p.id, p]));
 const bill = {};              // product id -> quantity
+const defaultPlace = document.querySelector("#place option[selected]").value;
 let activeCategory = "All";
 
 const $ = id => document.getElementById(id);
@@ -131,7 +132,9 @@ function computeTotals() {
   const subtotal = Object.keys(bill).reduce((sum, id) => sum + lineAmount(id), 0);
   const afterWhole = takeOff(subtotal, wholeHundredths(subtotal));
   const shipping = Math.max(Math.round((parseFloat($("shipping").value) || 0) * 100), 0);
-  return { subtotal, wholeOff: subtotal - afterWhole, shipping, total: afterWhole + shipping };
+  const exact = afterWhole + shipping;
+  const total = Math.floor((exact + 50) / 100) * 100;           // whole rupees, half up
+  return { subtotal, wholeOff: subtotal - afterWhole, shipping, roundOff: total - exact, total };
 }
 
 function renderBill() {
@@ -191,6 +194,8 @@ function refreshTotals() {
   $("subtotal").textContent = rupees(t.subtotal);
   $("whole-off").textContent = t.wholeOff ? "−" + rupees(t.wholeOff) : "";
   $("whole-off").hidden = $("whole-off-label").hidden = !t.wholeOff;
+  $("round-off").textContent = (t.roundOff > 0 ? "+" : t.roundOff < 0 ? "−" : "") +
+    rupees(Math.abs(t.roundOff));
   $("total").textContent = rupees(t.total);
   renderPayNow();                       // the total changed, so what is paid now changes too
 }
@@ -217,6 +222,11 @@ $("clear").onclick = () => {
   $("customer").value = "";
   $("phone").value = "";
   $("location").value = "";
+  $("place").value = defaultPlace;
+  showOther($("place"), $("place-other"));
+  $("place-other").value = "";
+  document.querySelector('input[name="customer-type"]').checked = true;   // Retail
+  $("order-date").value = today();
   if (dueOpen) $("due-toggle").onclick();   // closes the due panel and empties it
   renderBill();
 };
@@ -252,6 +262,13 @@ function showOther(select, input) {
   input.hidden = select.value !== "Other";
 }
 $("source").onchange = () => showOther($("source"), $("source-other"));
+$("place").onchange = () => showOther($("place"), $("place-other"));
+
+// Today as YYYY-MM-DD, in the owner's own time zone.
+const today = () => new Date().toLocaleDateString("en-CA");
+const customerType = () => document.querySelector('input[name="customer-type"]:checked').value;
+const placeOfSale = () => $("place").value === "Other" ? $("place-other").value : $("place").value;
+$("order-date").max = $("order-date").value = today();
 $("pay-mode").onchange = () => showOther($("pay-mode"), $("pay-other"));
 
 function billTotal() { return computeTotals().total; }
@@ -284,8 +301,7 @@ $("due-toggle").onclick = () => {
   dueOpen = !dueOpen;
   $("due-panel").hidden = !dueOpen;
   $("due-toggle").textContent = dueOpen ? "No due" : "Add due";
-  if (!dueOpen) { $("due-amount").value = ""; $("due-date").value = ""; }
-  else $("due-date").min = new Date().toLocaleDateString("en-CA");   // today, as YYYY-MM-DD
+  if (!dueOpen) $("due-amount").value = "";
   renderPayNow();
 };
 $("due-amount").oninput = renderPayNow;
@@ -358,8 +374,8 @@ $("save").onclick = async () => {
                              location: $("location").value,
                              whole_discount: $("whole-discount").value, shipping: $("shipping").value,
                              due_amount: dueOpen ? $("due-amount").value : "",
-                             due_date: dueOpen ? $("due-date").value : "",
-                             place_of_sale: $("place").value,
+                             place_of_sale: placeOfSale(), customer_type: customerType(),
+                             order_date: $("order-date").value,
                              order_source: $("source").value, order_source_other: $("source-other").value,
                              payments: paymentsForServer(),
                              replaces: prefill ? prefill.replaces : null,
@@ -388,7 +404,17 @@ function applyPrefill(old) {
   $("customer").value = old.customer;
   $("phone").value = old.phone;
   $("location").value = old.location;
-  $("place").value = old.place;
+  if ([...$("place").options].some(o => o.value === old.place && o.value !== "Other")) {
+    $("place").value = old.place;
+  } else if (old.place) {                                // typed under Other, or from an old bill
+    $("place").value = "Other";
+    $("place-other").value = old.place;
+  }
+  showOther($("place"), $("place-other"));
+  for (const r of document.querySelectorAll('input[name="customer-type"]')) {
+    r.checked = r.value === old.customer_type;
+  }
+  $("order-date").value = old.order_date;
   $("source").value = old.source;
   $("source-other").value = old.source_other;
   showOther($("source"), $("source-other"));
@@ -398,7 +424,6 @@ function applyPrefill(old) {
   if (old.due_amount) {
     $("due-toggle").onclick();
     $("due-amount").value = old.due_amount;
-    $("due-date").value = old.due_date;
   }
   if (old.payments.length === 1) {
     $("pay-mode").value = old.payments[0].mode;

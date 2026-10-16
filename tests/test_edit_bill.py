@@ -103,7 +103,7 @@ def test_returned_item_that_was_removed_from_inventory_still_goes_back(shop):
 
 def test_the_old_payment_and_due_stay_with_the_cancelled_bill(shop):
     old = save(shop, [{"product_id": TRAY, "quantity": 2}], "Asha", payments=[{"mode": "UPI"}],
-               due_amount="100", due_date="2999-01-31")
+               due_amount="100")
     new = save(shop, [{"product_id": TRAY, "quantity": 2}], "Asha", replaces=old)
     assert bill_row(shop, new)["due_amount"] == 0            # the new bill has its own payments
     assert shop.execute("SELECT mode FROM payments WHERE bill_id = ?", (new,)).fetchone()[0] == "Cash"
@@ -240,7 +240,7 @@ def test_cancel_through_the_website(client):
 def test_a_cancelled_bill_no_longer_counts_as_due(client):
     create(client)
     add(client, name="Tray", price="450", stock="10")
-    make(client, due_amount="100", due_date="2999-01-31")
+    make(client, due_amount="100")
     assert "Asha" in client.get("/bills?due=due").data.decode()
     client.post("/bills/1/cancel")
     assert "Asha" not in client.get("/bills?due=due").data.decode()

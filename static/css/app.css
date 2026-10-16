@@ -211,3 +211,10 @@ th { font-size: .85em; color: var(--color-muted); font-weight: 600; }
   .form .btn { width: 100%; margin: 0 0 8px; }
   .actions { flex-wrap: wrap; }
 }
+
+.head-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
+.order-date { display: flex; align-items: center; gap: 8px; color: var(--color-muted); font-size: .9rem; white-space: nowrap; }
+.bill-panel .order-date input { width: auto; min-height: 40px; padding: 8px 10px; }
+.radio-row { display: flex; gap: 20px; align-items: center; min-height: 44px; }
+.radio { display: flex; align-items: center; gap: 6px; color: var(--color-text); font-size: 1rem; }
+.bill-panel .radio input { width: auto; min-height: 0; accent-color: var(--color-primary, currentColor); }
