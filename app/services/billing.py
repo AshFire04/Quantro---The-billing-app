@@ -374,6 +374,36 @@ def receive_due(db, shop_id, bill_id, mode, other=""):
         db.execute("UPDATE bills SET due_amount = 0, due_date = '' WHERE id = ?", (bill_id,))
 
 
+def update_bill_customer(db, shop_id, bill_id, name, phone, location, place, customer_type):
+    """Correct the customer details on a saved bill, in place.
 
-
-
+    Only the customer's own information changes: the bill keeps its number, items, stock,
+    payments and total. The saved customer in Customer Details is updated to match, and a
+    customer left with no bills (a mistyped name, say) is removed from the list.
+    """
+    name, phone, location, place = name.strip(), phone.strip(), location.strip(), place.strip()
+    if not name:
+        raise BillError("Please enter the customer's name")
+    if phone and not 7 <= sum(c.isdigit() for c in phone) <= 15:
+        raise BillError("The phone number doesn't look right")
+    if customer_type not in CUSTOMER_TYPES:
+        raise BillError("Please choose Retail or B2B")
+    try:
+        with db:
+            bill = db.execute("SELECT customer_id FROM bills WHERE id = ? AND shop_id = ?",
+                              (bill_id, shop_id)).fetchone()
+            if bill is None:
+                raise BillError("That bill wasn't found")
+            customer_id = save_customer(db, shop_id, name, phone, location, customer_type)
+            db.execute("UPDATE bills SET customer_name = ?, customer_phone = ?, "
+                       "customer_location = ?, place_of_sale = ?, customer_type = ?, "
+                       "customer_id = ? WHERE id = ?",
+                       (name, phone, location, place, customer_type, customer_id, bill_id))
+            old = bill["customer_id"]
+            if old and old != customer_id and db.execute(
+                    "SELECT 1 FROM bills WHERE customer_id = ?", (old,)).fetchone() is None:
+                db.execute("DELETE FROM customers WHERE id = ?", (old,))
+    except BillError:
+        raise
+    except Exception:
+        raise BillError("Couldn't save the changes; nothing was changed")

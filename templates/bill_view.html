@@ -6,16 +6,15 @@
   {% set label, kind = bill_status(bill) %}
   <h1>Bill {{ bill.bill_label }} <span class="badge status-{{ kind }}">{{ label }}</span></h1>
   <div class="actions">
+    <a class="btn" href="{{ url_for('bills.edit_customer', bill_id=bill.id) }}">Edit customer</a>
     {% if bill.status == 'Saved' and not bill.replaced_by %}
-    <a class="btn" href="{{ url_for('billing.edit', bill_id=bill.id) }}">Edit</a>
+    <a class="btn" href="{{ url_for('billing.edit', bill_id=bill.id) }}">Edit product</a>
     <form method="post" action="{{ url_for('bills.cancel', bill_id=bill.id) }}"
           onsubmit="return confirm('Cancel bill {{ bill.bill_label }}? Its items go back into stock and the bill stays in Past bills as Cancelled.')">
       <button class="btn danger" type="submit">Cancel bill</button>
     </form>
     {% endif %}
     <button class="btn" type="button" onclick="window.print()">Print</button>
-    <a class="btn" href="{{ url_for('bills.index') }}">Past bills</a>
-    <a class="btn primary" href="{{ url_for('billing.index') }}">New bill</a>
   </div>
 </div>
 {% if bill.status == 'Cancelled' %}

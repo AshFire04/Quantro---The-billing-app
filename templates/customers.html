@@ -15,8 +15,15 @@
 {% else %}
   <form method="get" class="toolbar filter-form">
     <input name="q" value="{{ q }}" placeholder="Search by name, phone or location" aria-label="Search">
-    <button class="btn primary" type="submit">Search</button>
-    {% if q %}<a class="btn" href="{{ url_for('customers.index') }}">Clear</a>{% endif %}
+    <label>Sort by
+      <select name="sort">
+        <option value="name" {{ 'selected' if sort == 'name' }}>Name (A to Z)</option>
+        <option value="high" {{ 'selected' if sort == 'high' }}>Total billed: highest to lowest</option>
+        <option value="low" {{ 'selected' if sort == 'low' }}>Total billed: lowest to highest</option>
+      </select>
+    </label>
+    <button class="btn primary" type="submit">Apply</button>
+    {% if q or sort in ('high', 'low') %}<a class="btn" href="{{ url_for('customers.index') }}">Clear</a>{% endif %}
   </form>
 
   {% if customers %}

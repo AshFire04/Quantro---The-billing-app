@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Edit customer{% endblock %}
+{% block main_class %}page medium{% endblock %}
+{% block content %}
+<h1>Edit customer · Bill {{ bill.bill_label }}</h1>
+<p class="muted">This changes only the customer's details. The items, stock, payments and total of the bill stay exactly as they are.</p>
+<form method="post" class="card form">
+  <div class="form-cols">
+    <div>
+      <label>Phone number (optional)
+        <input name="phone" type="tel" value="{{ v.phone }}" placeholder="e.g. 98765 43210">
+      </label>
+      <label>Customer Name*
+        <input name="name" value="{{ v.name }}" required>
+      </label>
+      <label>Customer location (optional)
+        <input name="location" value="{{ v.location }}" placeholder="e.g. Indiranagar, Bengaluru">
+      </label>
+    </div>
+    <div>
+      <label>State
+        <select name="place">
+          {% if not v.place %}<option value="" selected>Not set</option>{% endif %}
+          {% for s in places %}<option{{ ' selected' if s == v.place }}>{{ s }}</option>{% endfor %}
+          <option{{ ' selected' if v.place == 'Other' }}>Other</option>
+        </select>
+      </label>
+      <label>If Other, type the state or country
+        <input name="place_other" value="{{ v.place_other }}">
+      </label>
+      <label>Customer type
+        <select name="customer_type">
+          {% for t in customer_types %}<option{{ ' selected' if t == v.customer_type }}>{{ t }}</option>{% endfor %}
+        </select>
+      </label>
+    </div>
+  </div>
+  <button class="btn primary" type="submit">Save customer details</button>
+  <a class="btn" href="{{ url_for('bills.view', bill_id=bill.id) }}">Cancel</a>
+</form>
+{% endblock %}

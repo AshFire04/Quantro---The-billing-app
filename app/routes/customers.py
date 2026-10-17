@@ -19,12 +19,15 @@ def index():
     if q:
         sql += " AND (c.name LIKE ? OR c.phone LIKE ? OR c.location LIKE ?)"
         params += [f"%{q}%"] * 3
-    sql += " GROUP BY c.id ORDER BY c.name COLLATE NOCASE"
+    sort = request.args.get("sort", "name")
+    order = {"high": "spent DESC, c.name COLLATE NOCASE",
+             "low": "spent ASC, c.name COLLATE NOCASE"}.get(sort, "c.name COLLATE NOCASE")
+    sql += f" GROUP BY c.id ORDER BY {order}"
     db = get_db()
     has_any = db.execute("SELECT 1 FROM customers WHERE shop_id = ?",
                          (g.shop["id"],)).fetchone() is not None
     return render_template("customers.html", customers=db.execute(sql, params).fetchall(),
-                           q=q, has_any=has_any)
+                           q=q, has_any=has_any, sort=sort)
 
 
 @bp.route("/customers/lookup")

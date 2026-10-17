@@ -6,7 +6,9 @@ from flask import (Blueprint, Response, abort, flash, g, redirect, render_templa
 from ..auth import login_required
 from ..db import get_db
 from ..services.billing import (BillError, ORDER_SOURCES, PAYMENT_MODES,
-                                cancel_bill, receive_due)
+                                CUSTOMER_TYPES, cancel_bill, receive_due,
+                                update_bill_customer)
+from ..services.states import PLACES
 from ..services.export import bills_workbook
 
 bp = Blueprint("bills", __name__)
@@ -100,6 +102,43 @@ def view(bill_id):
                            replaced_by=other(bill["replaced_by"]), replaces=other(bill["replaces"]),
                            just_saved=request.args.get("saved") == "1",
                            payment_modes=PAYMENT_MODES)
+
+
+def own_bill(bill_id):
+    bill = get_db().execute("SELECT * FROM bills WHERE id = ? AND shop_id = ?",
+                            (bill_id, g.shop["id"])).fetchone()
+    if bill is None:
+        abort(404)
+    return bill
+
+
+@bp.route("/bills/<int:bill_id>/customer", methods=("GET", "POST"))
+@login_required
+def edit_customer(bill_id):
+    """Fix the customer's details on a bill. The items and money are not touched."""
+    bill = own_bill(bill_id)
+    values = {"name": bill["customer_name"], "phone": bill["customer_phone"],
+              "location": bill["customer_location"], "customer_type": bill["customer_type"] or "Retail",
+              "place": bill["place_of_sale"], "place_other": ""}
+    if values["place"] and values["place"] not in PLACES:
+        values["place"], values["place_other"] = "Other", bill["place_of_sale"]
+    if request.method == "POST":
+        f = request.form
+        values = {"name": f.get("name", ""), "phone": f.get("phone", ""),
+                  "location": f.get("location", ""), "customer_type": f.get("customer_type", ""),
+                  "place": f.get("place", ""), "place_other": f.get("place_other", "")}
+        place = values["place_other"] if values["place"] == "Other" else values["place"]
+        try:
+            if values["place"] == "Other" and not place.strip():
+                raise BillError("Please type the state or country for 'Other'")
+            update_bill_customer(get_db(), g.shop["id"], bill_id, values["name"], values["phone"],
+                                 values["location"], place, values["customer_type"])
+            flash("Customer details updated.", "ok")
+            return redirect(url_for("bills.view", bill_id=bill_id))
+        except BillError as e:
+            flash(str(e))
+    return render_template("customer_edit.html", bill=bill, v=values, places=PLACES,
+                           customer_types=CUSTOMER_TYPES)
 
 
 @bp.route("/bills/<int:bill_id>/payment-received", methods=("POST",))

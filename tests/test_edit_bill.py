@@ -159,7 +159,7 @@ def test_saving_the_copy_replaces_the_bill(client):
     assert "This bill replaces" in new_page and f"bill {num(1)}" in new_page and "₹900.00" in new_page
     old_page = client.get("/bills/1").data.decode()
     assert "This bill is cancelled" in old_page and "replaced by" in old_page and f"bill {num(2)}" in old_page
-    assert ">Edit<" not in old_page                          # a cancelled bill can't be edited again
+    assert ">Edit product<" not in old_page                          # a cancelled bill can't be edited again
     listing = client.get("/bills").data.decode()
     assert "Cancelled" in listing and f"replaced by {num(2)}" in listing
     assert b">8<" in client.get("/inventory/").data          # 10 - 2
@@ -171,7 +171,7 @@ def test_edit_button_only_on_saved_bills(client):
     create(client)
     add(client, name="Tray", price="450", stock="10")
     make(client)
-    assert b">Edit<" in client.get("/bills/1").data
+    assert b">Edit product<" in client.get("/bills/1").data
 
 
 def test_cannot_edit_or_replace_another_shops_bill(client):
@@ -237,10 +237,10 @@ def test_cancel_through_the_website(client):
     add(client, name="Tray", price="450", stock="10")
     make(client)                                             # 4 trays out, due none
     page = client.get("/bills/1").data.decode()
-    assert "Cancel bill" in page and ">Edit<" in page
+    assert "Cancel bill" in page and ">Edit product<" in page
     done = client.post("/bills/1/cancel", follow_redirects=True).data.decode()
     assert "Bill cancelled. Its items are back in stock." in done and "This bill is cancelled" in done
-    assert "Cancel bill" not in done and ">Edit<" not in done
+    assert "Cancel bill" not in done and ">Edit product<" not in done
     assert b">10<" in client.get("/inventory/").data
     assert "Cancelled" in client.get("/bills").data.decode()
     again = client.post("/bills/1/cancel", follow_redirects=True).data

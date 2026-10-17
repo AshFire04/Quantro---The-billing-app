@@ -97,3 +97,98 @@ def test_customers_are_kept_separate_between_shops(client):
     create(client, login="two@example.com", shop="Other Shop")
     assert client.get("/customers/lookup?phone=9876543210").get_json() == {"found": False}
     assert "Asha" not in customers(client)
+
+
+# ---- sorting by total billed ----
+
+def test_sort_by_total_billed(client):
+    setup(client)
+    make_bill(client, "Small", qty=1)
+    make_bill(client, "Big", qty=5)
+    make_bill(client, "Medium", qty=3)
+
+    def order(sort):
+        page = client.get(f"/customers?sort={sort}").data.decode()
+        return [n for n in ("Small", "Medium", "Big") if n in page], sorted(
+            ((page.index(f"<td>{n}</td>"), n) for n in ("Small", "Medium", "Big")))
+
+    assert [n for _, n in order("high")[1]] == ["Big", "Medium", "Small"]
+    assert [n for _, n in order("low")[1]] == ["Small", "Medium", "Big"]
+    assert [n for _, n in order("name")[1]] == ["Big", "Medium", "Small"]       # A to Z
+    assert "highest to lowest" in client.get("/customers").data.decode()
+
+
+# ---- edit customer on a saved bill ----
+
+def bill_row(app, bill_id=1):
+    import sqlite3
+    db = sqlite3.connect(app.config["DATABASE"])
+    db.row_factory = sqlite3.Row
+    return db.execute("SELECT * FROM bills WHERE id = ?", (bill_id,)).fetchone(), db
+
+
+def test_bill_page_buttons(client):
+    setup(client)
+    make_bill(client, "Asha")
+    page = client.get("/bills/1").data.decode()
+    assert ">Edit customer<" in page and ">Edit product<" in page and ">Print<" in page
+    assert ">Past bills<" not in page.split("paper-head")[0].split("<main")[1]
+    assert ">New bill<" not in page
+
+
+def test_edit_customer_changes_only_the_customer(client, app):
+    setup(client)
+    make_bill(client, "Asha", qty=2, phone="9876543210")
+    before, db = bill_row(app)
+    stock_before = db.execute("SELECT stock FROM products").fetchone()[0]
+    page = client.get("/bills/1/customer").data.decode()
+    assert 'value="Asha"' in page and "stay exactly as they are" in page
+    res = client.post("/bills/1/customer", data={
+        "name": "Asha Rao", "phone": "98765 43210", "location": "Indiranagar",
+        "place": "Kerala", "place_other": "", "customer_type": "B2B"}, follow_redirects=True)
+    assert b"Customer details updated" in res.data and b"Asha Rao" in res.data
+    after, db = bill_row(app)
+    assert (after["customer_name"], after["customer_location"], after["place_of_sale"],
+            after["customer_type"]) == ("Asha Rao", "Indiranagar", "Kerala", "B2B")
+    for field in ("bill_label", "total", "status", "invoice_number", "replaced_by", "replaces"):
+        assert after[field] == before[field]                    # nothing about the bill itself
+    assert db.execute("SELECT stock FROM products").fetchone()[0] == stock_before
+    assert db.execute("SELECT COUNT(*) FROM bills").fetchone()[0] == 1       # no replacement bill
+    assert db.execute("SELECT COUNT(*) FROM bill_lines").fetchone()[0] == 1
+    customers_page = client.get("/customers").data.decode()
+    assert "Asha Rao" in customers_page and customers_page.count("<td>Asha Rao</td>") == 1
+
+
+def test_edit_customer_fixes_a_mistyped_name_without_leaving_a_ghost(client):
+    setup(client)
+    make_bill(client, "Ashaa")                                              # typo, no phone
+    client.post("/bills/1/customer", data={"name": "Asha", "phone": "", "location": "",
+                                           "place": "Karnataka", "customer_type": "Retail"})
+    page = client.get("/customers").data.decode()
+    assert page.count("<td>Asha</td>") == 1 and "Ashaa" not in page
+
+
+def test_edit_customer_other_state_and_checks(client):
+    setup(client)
+    make_bill(client, "Asha")
+    client.post("/bills/1/customer", data={"name": "Asha", "phone": "", "location": "",
+                                           "place": "Other", "place_other": "Singapore",
+                                           "customer_type": "Retail"})
+    assert "Singapore" in client.get("/bills/1/customer").data.decode()
+    for data, message in [({"name": " "}, "enter the customer"), ({"phone": "123"}, "phone number"),
+                          ({"customer_type": "X"}, "Retail or B2B"),
+                          ({"place": "Other", "place_other": ""}, "type the state")]:
+        body = {"name": "Asha", "phone": "", "location": "", "place": "Karnataka",
+                "place_other": "", "customer_type": "Retail", **data}
+        assert message in client.post("/bills/1/customer", data=body).data.decode()
+
+
+def test_edit_customer_works_on_cancelled_bills_and_stays_in_the_shop(client):
+    setup(client)
+    make_bill(client, "Asha")
+    client.post("/bills/1/cancel")
+    assert client.get("/bills/1/customer").status_code == 200
+    client.get("/logout")
+    create(client, login="two@example.com", shop="Other Shop")
+    assert client.get("/bills/1/customer").status_code == 404
+    assert client.post("/bills/1/customer", data={"name": "Hacker"}).status_code == 404
