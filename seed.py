@@ -46,18 +46,23 @@ OFFERS = [
 
 # Sample bills: days ago, customer, [(code, quantity)], extras for save_bill
 BILLS = [
-    (6, "Meena Stores", [("KA36", 3), ("TB04", 2)], {"order_source": "Walk-in"}),
-    (5, "Anita Rao", [("CU10", 4)], {"order_source": "WhatsApp"}),
-    (4, "Walk-in customer", [("TW02", 2), ("TW03", 1)], {"order_source": "Walk-in"}),
+    (6, "Meena Stores", [("KA36", 3), ("TB04", 2)],
+     {"order_source": "Walk-in", "customer_phone": "98450 11223"}),
+    (5, "Anita Rao", [("CU10", 4)],
+     {"order_source": "WhatsApp", "customer_phone": "98860 22334"}),
+    (4, "", [("TW02", 2), ("TW03", 1)], {"order_source": "Walk-in"}),          # a walk-in: no name, no phone
     (3, "Ravi Kumar", [("RG05", 1), ("CR01", 2)],
-     {"order_source": "Instagram", "payments": [{"mode": "UPI"}]}),
+     {"order_source": "Instagram", "payments": [{"mode": "UPI"}],
+      "customer_phone": "97400 33445"}),
     (2, "Sunita Devi", [("KA52", 2), ("CU20", 2)],
-     {"order_source": "WhatsApp", "payments": [{"mode": "Card"}]}),
-    (1, "Walk-in customer", [("TB07", 1)], {"order_source": "Walk-in"}),
+     {"order_source": "WhatsApp", "payments": [{"mode": "Card"}],
+      "customer_phone": "99000 44556"}),
+    (1, "", [("TB07", 1)], {"order_source": "Walk-in"}),
     (0, "Priya Nair", [("KA37", 1), ("CU12", 1), ("CR01", 1)],
-     {"order_source": "Walk-in", "whole_discount": "5"}),
+     {"order_source": "Walk-in", "whole_discount": "5"}),          # a name but no phone
     (0, "Meena Stores", [("TW02", 6), ("TB04", 4)],
-     {"order_source": "Walk-in", "due_amount": "1200", "customer_type": "B2B"}),
+     {"order_source": "Walk-in", "due_amount": "1200", "customer_type": "B2B",
+      "customer_phone": "98450 11223"}),               # the same Meena Stores again
 ]
 
 

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Move bill?{% endblock %}
+{% block main_class %}page medium{% endblock %}
+{% block content %}
+<h1>Move this bill too?</h1>
+<p class="flash ok">The details on bill {{ bill.bill_label }} were updated.</p>
+<div class="card">
+  <p>The phone number <strong>{{ owner.phone }}</strong> belongs to <strong>{{ owner.name }}</strong>
+  in Customer Details{% if current %}, but this bill is linked to <strong>{{ current.name }}</strong>{% else %}, but this bill is a walk-in, not linked to anyone{% endif %}.</p>
+  <p class="muted">Do you want this bill to count under {{ owner.name }}? What the bill printed does not change either way.</p>
+  <form method="post" action="{{ url_for('bills.move', bill_id=bill.id) }}" class="form">
+    <input type="hidden" name="customer_id" value="{{ owner.id }}">
+    <button class="btn primary" type="submit">Move bill to {{ owner.name }}</button>
+    <a class="btn" href="{{ url_for('bills.view', bill_id=bill.id) }}">No, leave it</a>
+  </form>
+</div>
+{% endblock %}

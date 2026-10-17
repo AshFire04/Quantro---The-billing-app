@@ -97,7 +97,7 @@ def test_save_through_the_website(client):
                                              "order_source": "WhatsApp", "payments": CASH})
     assert res.status_code == 200
     page = client.get(res.get_json()["url"]).data
-    assert b"Asha" in page and b"WhatsApp" in page and b"Cash" in page and b"98765 43210" in page and "₹900.00".encode() in page
+    assert b"Asha" in page and b"WhatsApp" in page and b"Cash" in page and b"9876543210" in page and "₹900.00".encode() in page
     assert b"<td class=\"num mono\">3</td>" not in page  # stock is on Inventory, not the bill
     assert b">3<" in client.get("/inventory/").data
     bad = client.post("/billing/save", json={"items": [{"product_id": 1, "quantity": 9}], "customer": "Asha",
@@ -116,17 +116,21 @@ def test_cannot_bill_another_shops_product(client):
     assert client.get("/bills/1").status_code == 404
 
 
-def test_customer_name_is_required_and_phone_is_optional(shop):
+def test_phone_is_checked_and_a_blank_name_with_no_phone_is_a_walk_in(shop):
     items = [{"product_id": 1, "quantity": 1}]
-    with pytest.raises(BillError, match="customer's name"):
-        save(shop, items, "   ")
-    with pytest.raises(BillError, match="phone number"):
+    with pytest.raises(BillError, match="10-digit mobile"):
         save(shop, items, "Asha", customer_phone="12ab")
+    with pytest.raises(BillError, match="10-digit mobile"):
+        save(shop, items, "Asha", customer_phone="5123456789")       # mobiles start 6 to 9
+    with pytest.raises(BillError, match="name for a new phone"):
+        save(shop, items, "  ", customer_phone="98765 43210")       # a new number needs a name
     assert stock_of(shop, "Tray") == 10
-    save(shop, items, "Asha")                                # no phone: fine
+    save(shop, items, "Asha")                                       # no phone: a customer by name
     save(shop, items, "Ravi", customer_phone="+91 98765 43210")
-    phones = [r[0] for r in shop.execute("SELECT customer_phone FROM bills ORDER BY id")]
-    assert phones == ["", "+91 98765 43210"]
+    save(shop, items, "")                                           # nothing: a walk-in
+    rows = shop.execute("SELECT customer_name, customer_phone FROM bills ORDER BY id").fetchall()
+    assert [tuple(r) for r in rows] == [("Asha", ""), ("Ravi", "9876543210"),
+                                        ("Walk-in customer", "")]
 
 
 def test_order_source_and_payment_mode_are_required(shop):

@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS bills (
     customer_name TEXT NOT NULL DEFAULT '',
     customer_phone TEXT NOT NULL DEFAULT '',
     customer_location TEXT NOT NULL DEFAULT '',
+    customer_other_phone TEXT NOT NULL DEFAULT '',
     due_amount INTEGER NOT NULL DEFAULT 0,  -- paise still to be paid (0 = paid in full)
     due_date TEXT NOT NULL DEFAULT '',      -- old bills only: when the rest was expected
     customer_type TEXT NOT NULL DEFAULT 'Retail',  -- Retail or B2B
@@ -67,15 +68,15 @@ CREATE TABLE IF NOT EXISTS bills (
     UNIQUE (shop_id, invoice_number)
 );
 CREATE TABLE IF NOT EXISTS customers (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,   -- a customer is this id, never the name
     shop_id INTEGER NOT NULL REFERENCES shops(id),
-    name TEXT NOT NULL,                -- 'Asha', or 'Retail - Asha' when there is no phone number
-    phone TEXT NOT NULL DEFAULT '',    -- as typed
-    phone_key TEXT NOT NULL DEFAULT '',  -- digits only; how a customer is found again
+    name TEXT NOT NULL,
+    phone TEXT NOT NULL DEFAULT '',         -- mobile, 10 digits, unique in a shop when not empty
+    other_phone TEXT NOT NULL DEFAULT '',   -- landline or second number; never used for matching
     location TEXT NOT NULL DEFAULT '',
-    customer_type TEXT NOT NULL DEFAULT 'Retail'
+    customer_type TEXT NOT NULL DEFAULT 'Retail',
+    legacy INTEGER NOT NULL DEFAULT 0       -- 1 = a customer with no phone from before the upgrade
 );
-CREATE INDEX IF NOT EXISTS customers_phone ON customers (shop_id, phone_key);
 CREATE TABLE IF NOT EXISTS order_sources (   -- the shop's "Order came through" choices
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     shop_id INTEGER NOT NULL REFERENCES shops(id),
@@ -142,6 +143,101 @@ def close_db(e=None):
         conn.close()
 
 
+def backup_database(db, label):
+    """Copy the whole database to a dated file beside it, before a risky change.
+
+    Returns the file's path, or None for a database with no bills yet (nothing to lose).
+    """
+    if db.execute("SELECT 1 FROM bills LIMIT 1").fetchone() is None:
+        return None
+    import os
+    from datetime import datetime
+    path = db.execute("PRAGMA database_list").fetchone()["file"]
+    if not path:
+        return None
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    target = os.path.join(os.path.dirname(path), f"quantro-backup-{label}-{stamp}.db")
+    db.commit()
+    copy = sqlite3.connect(target)
+    try:
+        db.backup(copy)
+    finally:
+        copy.close()
+    return target
+
+
+def migrate_customers(db):
+    """Upgrade customers from "found by name" to "found by id" without losing anything.
+
+    Runs once, on a database whose customers table still has the old phone_key column:
+    * a dated backup of the database is made first;
+    * every customer keeps its id, so every bill stays linked to the same customer;
+    * phones are tidied to 10-digit mobile numbers; two customers that turn out to have the
+      same number are joined (their bills moved to the older one);
+    * a customer with no usable mobile number is kept, marked "No phone, older bill", and
+      anything that was in the phone box (a landline, say) is kept as Other phone;
+    * what each bill printed is never touched.
+    Everything happens in one transaction: if anything fails, nothing changes.
+    """
+    from .services.customers import normalize_phone
+    if "phone_key" not in [r["name"] for r in db.execute("PRAGMA table_info(customers)")]:
+        return
+    backup = backup_database(db, "before-customer-upgrade")
+    old = db.execute("SELECT * FROM customers ORDER BY id").fetchall()
+    keep, joined, owner = [], 0, {}
+    for c in old:
+        typed = (c["phone"] or "").strip()
+        digits, error = normalize_phone(typed or c["phone_key"])
+        other = "" if digits or not typed else typed
+        row = {"id": c["id"], "shop_id": c["shop_id"], "name": c["name"], "phone": digits,
+               "other": other, "location": c["location"], "type": c["customer_type"],
+               "legacy": 0 if digits else 1, "merged_into": None}
+        if digits and (c["shop_id"], digits) in owner:
+            row["merged_into"] = owner[(c["shop_id"], digits)]
+            joined += 1
+        elif digits:
+            owner[(c["shop_id"], digits)] = c["id"]
+        keep.append(row)
+    try:
+        db.execute("BEGIN")
+        db.execute("""CREATE TABLE customers_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            shop_id INTEGER NOT NULL REFERENCES shops(id),
+            name TEXT NOT NULL,
+            phone TEXT NOT NULL DEFAULT '',
+            other_phone TEXT NOT NULL DEFAULT '',
+            location TEXT NOT NULL DEFAULT '',
+            customer_type TEXT NOT NULL DEFAULT 'Retail',
+            legacy INTEGER NOT NULL DEFAULT 0)""")
+        by_id = {r["id"]: r for r in keep}
+        for r in keep:
+            if r["merged_into"] is None:
+                continue
+            target = by_id[r["merged_into"]]
+            if not target["location"] and r["location"]:
+                target["location"] = r["location"]
+            db.execute("UPDATE bills SET customer_id = ? WHERE customer_id = ?",
+                       (target["id"], r["id"]))
+        for r in keep:
+            if r["merged_into"] is None:
+                db.execute("INSERT INTO customers_new (id, shop_id, name, phone, other_phone, "
+                           "location, customer_type, legacy) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                           (r["id"], r["shop_id"], r["name"], r["phone"], r["other"],
+                            r["location"], r["type"], r["legacy"]))
+        db.execute("DROP TABLE customers")
+        db.execute("ALTER TABLE customers_new RENAME TO customers")
+        db.execute("UPDATE bills SET customer_id = 0 WHERE customer_id != 0 AND customer_id "
+                   "NOT IN (SELECT id FROM customers)")
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    print(f"Customer upgrade done: {len(keep) - joined} customers kept, {joined} joined "
+          f"(same mobile number), {sum(1 for r in keep if r['legacy'] and r['merged_into'] is None)} "
+          f"without a mobile number marked 'No phone, older bill'."
+          + (f" Backup: {backup}" if backup else ""))
+
+
 def init_db():
     db = get_db()
     had_lists = db.execute("SELECT 1 FROM sqlite_master WHERE name = 'payment_methods'").fetchone()
@@ -167,7 +263,7 @@ def init_db():
              "due_date": "TEXT", "due_amount": "INTEGER", "offer_ids": "TEXT",
              "offers_applied": "TEXT", "round_off": "INTEGER", "customer_type": "TEXT",
              "customer_id": "INTEGER", "fy": "INTEGER", "bill_seq": "INTEGER",
-             "bill_label": "TEXT"}
+             "bill_label": "TEXT", "customer_other_phone": "TEXT"}
     for name, kind in added.items():
         if name not in columns:
             default = ("0" if kind == "INTEGER" else "'Retail'" if name == "customer_type"
@@ -183,27 +279,9 @@ def init_db():
             seen[(b["shop_id"], fy)] = seq = seen.get((b["shop_id"], fy), 0) + 1
             db.execute("UPDATE bills SET fy = ?, bill_seq = ?, bill_label = ? WHERE id = ?",
                        (fy, seq, f"{fy}/{seq}", b["id"]))
-    if "customer_id" not in columns:
-        # Bills made before Customer Details existed: save their customers, oldest first.
-        from .services.customers import save_customer
-        for b in db.execute("SELECT id, shop_id, customer_name, customer_phone, "
-                            "customer_location, customer_type FROM bills ORDER BY id").fetchall():
-            cid = save_customer(db, b["shop_id"], b["customer_name"], b["customer_phone"],
-                                b["customer_location"], b["customer_type"] or "Retail")
-            db.execute("UPDATE bills SET customer_id = ? WHERE id = ?", (cid, b["id"]))
-    # Customers without a phone number were once saved as 'Retail - Asha': use the plain name.
-    for old in db.execute("SELECT id, shop_id, name FROM customers WHERE phone_key = '' AND "
-                          "(name LIKE 'Retail - %' OR name LIKE 'B2B - %')").fetchall():
-        plain = old["name"].split(" - ", 1)[1].strip()
-        twin = db.execute("SELECT id FROM customers WHERE shop_id = ? AND phone_key = '' AND "
-                          "lower(name) = lower(?) AND id != ? ORDER BY id",
-                          (old["shop_id"], plain, old["id"])).fetchone()
-        if twin is None:
-            db.execute("UPDATE customers SET name = ? WHERE id = ?", (plain, old["id"]))
-        else:                                          # the same person twice: join them up
-            db.execute("UPDATE bills SET customer_id = ? WHERE customer_id = ?",
-                       (twin["id"], old["id"]))
-            db.execute("DELETE FROM customers WHERE id = ?", (old["id"],))
+    migrate_customers(db)
+    db.execute("CREATE UNIQUE INDEX IF NOT EXISTS customers_phone_unique "
+               "ON customers (shop_id, phone) WHERE phone != ''")
     shop_columns = [row["name"] for row in db.execute("PRAGMA table_info(shops)")]
     if "monthly_target" not in shop_columns:
         db.execute("ALTER TABLE shops ADD COLUMN monthly_target INTEGER NOT NULL DEFAULT 0")

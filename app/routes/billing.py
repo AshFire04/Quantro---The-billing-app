@@ -97,6 +97,7 @@ def edit(bill_id):
     prefill = {
         "replaces": bill_id,
         "customer": old["customer_name"], "phone": old["customer_phone"],
+        "other_phone": old["customer_other_phone"], "customer_id": old["customer_id"],
         "location": old["customer_location"], "place": old["place_of_sale"],
         "source": source, "source_other": source_other,
         "whole_discount": "%g" % old["whole_discount_pct"] if old["whole_discount_pct"] else "",
@@ -129,6 +130,8 @@ def save():
         bill_id = save_bill(get_db(), g.shop["id"], data.get("items", []),
                             customer_name=str(data.get("customer", "")),
                             customer_phone=str(data.get("phone", "")),
+                            customer_other_phone=str(data.get("other_phone", "")),
+                            customer_id=data.get("customer_id"),
                             place_of_sale=str(data.get("place_of_sale", "")),
                             order_source=str(data.get("order_source", "")),
                             order_source_other=str(data.get("order_source_other", "")),

@@ -36,12 +36,18 @@
     </div>
 
     <div class="bill-form">
-      <label class="f">Phone number (optional)
+      <div class="f">
+        <label for="phone">Mobile number (optional)</label>
         <input id="phone" type="tel" placeholder="e.g. 98765 43210" autocomplete="off">
-        <span id="phone-note" class="muted small" hidden></span>
-      </label>
-      <label class="f">Customer Name*
-        <input id="customer" placeholder="Customer Name" required>
+        <span id="phone-note" class="small" hidden></span>
+      </div>
+      <div class="f name-field">
+        <label for="customer">Customer name</label>
+        <input id="customer" placeholder="Search or type a name (blank = walk-in)" autocomplete="off">
+        <div id="customer-results" class="pick-list floating" hidden></div>
+      </div>
+      <label class="f">Other phone (optional)
+        <input id="other-phone" placeholder="Landline or second number" maxlength="40" autocomplete="off">
       </label>
       <label class="f">Customer location (optional)
         <input id="location" placeholder="e.g. Indiranagar, Bengaluru">

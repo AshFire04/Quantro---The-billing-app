@@ -9,7 +9,7 @@
 
 {% if not has_any %}
   <div class="card empty">
-    <p>No customers yet. Customers are saved automatically when you make a bill.</p>
+    <p>No customers yet. A customer is saved when you make a bill with a phone number or a name. A bill with neither is a walk-in and is not listed here.</p>
     <a class="btn primary" href="{{ url_for('billing.index') }}">Make a bill</a>
   </div>
 {% else %}
@@ -30,13 +30,14 @@
   <div class="card table-wrap">
     <table>
       <thead>
-        <tr><th>Customer</th><th>Phone</th><th>Location</th><th>Type</th><th class="num">Bills</th><th class="num">Total billed</th><th>Last bill</th></tr>
+        <tr><th>Customer</th><th>Phone</th><th>Other phone</th><th>Location</th><th>Type</th><th class="num">Bills</th><th class="num">Total billed</th><th>Last bill</th></tr>
       </thead>
       <tbody>
       {% for c in customers %}
         <tr>
-          <td>{{ c.name }}</td>
-          <td class="mono">{{ c.phone }}</td>
+          <td><a href="{{ url_for('customers.detail', customer_id=c.id) }}">{{ c.name }}</a></td>
+          <td class="mono">{% if c.phone %}{{ c.phone }}{% elif c.legacy %}<span class="muted">No phone, older bill</span>{% else %}<span class="muted">No phone</span>{% endif %}</td>
+          <td class="mono">{{ c.other_phone }}</td>
           <td>{{ c.location }}</td>
           <td>{{ c.customer_type }}</td>
           <td class="num mono">{% if c.bill_count %}<a href="{{ url_for('bills.index', customer=c.id) }}">{{ c.bill_count }}</a>{% else %}0{% endif %}</td>

@@ -231,3 +231,16 @@ th { font-size: .85em; color: var(--color-muted); font-weight: 600; }
 .pane-note { margin: 0 0 10px; }
 
 .terms { white-space: pre-line; }
+
+.name-field { position: relative; }
+.pick-list { display: flex; flex-direction: column; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); overflow: hidden; }
+.pick-list[hidden] { display: none; }
+.pick-list.floating { position: absolute; top: 100%; left: 0; right: 0; z-index: 20; box-shadow: 0 8px 24px rgba(0,0,0,.12); margin-top: 4px; }
+.pick { display: flex; flex-direction: column; gap: 2px; text-align: left; font: inherit; padding: 10px 14px; border: 0; border-bottom: 1px solid var(--color-border); background: transparent; color: var(--color-text); cursor: pointer; }
+.pick:last-child { border-bottom: 0; }
+.pick:hover { background: var(--color-ok-bg); }
+.pick span { font-size: .85rem; color: var(--color-muted); }
+.pick.add { color: var(--color-primary-dark); font-weight: 600; }
+.link-button { font: inherit; font-size: .85rem; border: 0; background: none; color: var(--color-primary); text-decoration: underline; cursor: pointer; padding: 0; }
+#phone-note.ok { color: var(--color-primary-dark); }
+#phone-note.bad { color: var(--color-danger); }

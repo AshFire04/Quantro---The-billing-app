@@ -63,8 +63,8 @@ def test_refused_edit_changes_nothing(shop):
     old = save(shop, [{"product_id": TRAY, "quantity": 4}], "Asha")
     with pytest.raises(BillError):
         save(shop, [{"product_id": TRAY, "quantity": 11}], "Asha", replaces=old)
-    with pytest.raises(BillError, match="customer's name"):
-        save(shop, [{"product_id": TRAY, "quantity": 1}], " ", replaces=old)
+    with pytest.raises(BillError, match="10-digit mobile"):
+        save(shop, [{"product_id": TRAY, "quantity": 1}], "Asha", customer_phone="123", replaces=old)
     assert stock_of(shop, "Tray") == 6
     assert bill_row(shop, old)["status"] == "Saved" and bill_row(shop, old)["replaced_by"] is None
     assert count_bills(shop) == 1
@@ -139,7 +139,7 @@ def test_edit_page_opens_a_copy_with_everything_filled_in(client):
     page = client.get("/billing/edit/1").data.decode()
     assert f"Editing bill {num(1)}" in page and f"Save changes (replaces {num(1)})" in page
     assert '"stock": 10' in page                             # the 4 held by bill #1 count as available
-    for expected in ('"customer": "Asha"', '"phone": "98765 43210"', '"location": "Indiranagar"',
+    for expected in ('"customer": "Asha"', '"phone": "9876543210"', '"location": "Indiranagar"',
                      '"source": "WhatsApp"', '"whole_discount": "5"', '"shipping": "80.00"',
                      '"discount": "10"', '"quantity": 4', '"replaces": 1'):
         assert expected in page

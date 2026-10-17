@@ -6,6 +6,7 @@ from flask import (Blueprint, Response, abort, flash, g, redirect, render_templa
 from ..auth import login_required
 from ..db import get_db
 from ..services import choices
+from ..services import customers as people
 from ..services.billing import (BillError, CUSTOMER_TYPES, cancel_bill, receive_due,
                                 update_bill_customer)
 from ..services.states import PLACES
@@ -128,30 +129,62 @@ def own_bill(bill_id):
 @bp.route("/bills/<int:bill_id>/customer", methods=("GET", "POST"))
 @login_required
 def edit_customer(bill_id):
-    """Fix the customer's details on a bill. The items and money are not touched."""
+    """Fix the customer details printed on this one bill. No other bill is touched."""
     bill = own_bill(bill_id)
     values = {"name": bill["customer_name"], "phone": bill["customer_phone"],
-              "location": bill["customer_location"], "customer_type": bill["customer_type"] or "Retail",
+              "other_phone": bill["customer_other_phone"], "location": bill["customer_location"],
+              "customer_type": bill["customer_type"] or "Retail",
               "place": bill["place_of_sale"], "place_other": ""}
     if values["place"] and values["place"] not in PLACES:
         values["place"], values["place_other"] = "Other", bill["place_of_sale"]
     if request.method == "POST":
         f = request.form
         values = {"name": f.get("name", ""), "phone": f.get("phone", ""),
-                  "location": f.get("location", ""), "customer_type": f.get("customer_type", ""),
+                  "other_phone": f.get("other_phone", ""), "location": f.get("location", ""),
+                  "customer_type": f.get("customer_type", ""),
                   "place": f.get("place", ""), "place_other": f.get("place_other", "")}
         place = values["place_other"] if values["place"] == "Other" else values["place"]
         try:
             if values["place"] == "Other" and not place.strip():
                 raise BillError("Please type the state or country for 'Other'")
-            update_bill_customer(get_db(), g.shop["id"], bill_id, values["name"], values["phone"],
-                                 values["location"], place, values["customer_type"])
-            flash("Customer details updated.", "ok")
+            owner = update_bill_customer(get_db(), g.shop["id"], bill_id, values["name"],
+                                         values["phone"], values["other_phone"],
+                                         values["location"], place, values["customer_type"])
+            if owner is not None:
+                return redirect(url_for("bills.link_customer", bill_id=bill_id, to=owner["id"]))
+            flash("Customer details updated on this bill only.", "ok")
             return redirect(url_for("bills.view", bill_id=bill_id))
         except BillError as e:
             flash(str(e))
+    current = people.get(get_db(), g.shop["id"], bill["customer_id"]) if bill["customer_id"] else None
     return render_template("customer_edit.html", bill=bill, v=values, places=PLACES,
-                           customer_types=CUSTOMER_TYPES)
+                           customer_types=CUSTOMER_TYPES, current=current)
+
+
+@bp.route("/bills/<int:bill_id>/customer/link")
+@login_required
+def link_customer(bill_id):
+    """After a phone number was changed to one that belongs to another customer: offer to move."""
+    bill = own_bill(bill_id)
+    owner = people.get(get_db(), g.shop["id"], request.args.get("to", ""))
+    if owner is None or owner["id"] == bill["customer_id"]:
+        return redirect(url_for("bills.view", bill_id=bill_id))
+    current = people.get(get_db(), g.shop["id"], bill["customer_id"]) if bill["customer_id"] else None
+    return render_template("bill_link.html", bill=bill, owner=owner, current=current)
+
+
+@bp.route("/bills/<int:bill_id>/move", methods=("POST",))
+@login_required
+def move(bill_id):
+    """Link this bill to another customer. What the bill printed stays as it was."""
+    own_bill(bill_id)
+    try:
+        people.move_bill(get_db(), g.shop["id"], bill_id, request.form.get("customer_id", ""))
+        flash("Bill moved to the other customer. What it printed is unchanged.", "ok")
+    except people.CustomerError as e:
+        flash(str(e))
+        return redirect(url_for("bills.edit_customer", bill_id=bill_id))
+    return redirect(url_for("bills.view", bill_id=bill_id))
 
 
 @bp.route("/bills/<int:bill_id>/payment-received", methods=("POST",))

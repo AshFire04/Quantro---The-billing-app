@@ -7,7 +7,7 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
 from . import choices
-from .customers import save_customer
+from .customers import CustomerError, clean_other_phone, resolve_for_bill
 from .money import format_rupees, rupees_to_paise, take_percent_off
 
 CUSTOMER_TYPES = ["Retail", "B2B"]
@@ -238,7 +238,7 @@ def save_bill(db, shop_id, items, customer_name, customer_phone="", place_of_sal
               order_source="", order_source_other="", payments=None,
               customer_location="", due_amount="", whole_discount="",
               shipping="", replaces=None, offer_ids=(), customer_type="Retail",
-              order_date=""):
+              order_date="", customer_id=None, customer_other_phone=""):
     """Save a bill and lower the stock, all in one go. Returns the new bill's id.
 
     With `replaces` (the id of a saved bill), this is an edit: the old bill's items go back
@@ -247,12 +247,14 @@ def save_bill(db, shop_id, items, customer_name, customer_phone="", place_of_sal
 
     If anything fails, nothing is changed: not the bills, not the invoice number, not the stock.
     """
-    customer_name = customer_name.strip()
-    customer_phone = customer_phone.strip()
-    if not customer_name:
-        raise BillError("Please enter the customer's name")
-    if customer_phone and not 7 <= sum(c.isdigit() for c in customer_phone) <= 15:
-        raise BillError("The phone number doesn't look right")
+    # Who the bill is for is worked out inside the transaction (see resolve_for_bill); here we
+    # only check what can be checked without touching the database.
+    customer_name = (customer_name or "").strip()
+    customer_phone = str(customer_phone or "")
+    from .customers import normalize_phone
+    _, phone_error = normalize_phone(customer_phone)
+    if phone_error:
+        raise BillError(phone_error)
     source = clean_choice(order_source, order_source_other,
                           choices.with_other(db, shop_id, "source"), "order source")
     pay_modes = choices.with_other(db, shop_id, "method")
@@ -274,8 +276,10 @@ def save_bill(db, shop_id, items, customer_name, customer_phone="", place_of_sal
             lines, total = priced["lines"], priced["total"]
             due = check_due(due_amount, total)
             payments = check_payments(payments, total - due, pay_modes)
-            customer_id = save_customer(db, shop_id, customer_name, customer_phone,
-                                        customer_location, customer_type)
+            # The bill keeps its own copy of the name and phone it was made with.
+            customer_id, customer_name, customer_phone = resolve_for_bill(
+                db, shop_id, customer_id, customer_name, customer_phone, customer_other_phone,
+                customer_location, customer_type)
             shop = db.execute("SELECT next_invoice_number FROM shops WHERE id = ?",
                               (shop_id,)).fetchone()
             number = shop["next_invoice_number"]       # internal; the owner sees the label
@@ -286,15 +290,17 @@ def save_bill(db, shop_id, items, customer_name, customer_phone="", place_of_sal
                 "INSERT INTO bills (shop_id, invoice_number, created_at, customer_name, "
                 "customer_phone, customer_location, place_of_sale, order_source, total, "
                 "due_amount, whole_discount_pct, shipping, replaces, offer_ids, "
-                "offers_applied, customer_type, round_off, customer_id, fy, bill_seq, bill_label) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "offers_applied, customer_type, round_off, customer_id, fy, bill_seq, bill_label, "
+                "customer_other_phone) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (shop_id, number, created_at,
-                 customer_name, customer_phone, customer_location.strip(),
+                 customer_name, customer_phone, (customer_location or "").strip(),
                  place_of_sale.strip(), source, total, due,
                  float(priced["whole_pct"]), shipping_paise, replaces,
                  ",".join(str(o["id"]) for o in offers),
                  ", ".join(priced["offers_applied"]), customer_type,
-                 priced["round_off"], customer_id, fy, seq, label)).lastrowid
+                 priced["round_off"], customer_id, fy, seq, label,
+                 clean_other_phone(customer_other_phone))).lastrowid
             if replaces is not None:
                 db.execute("UPDATE bills SET status = 'Cancelled', replaced_by = ? "
                            "WHERE id = ?", (bill_id, replaces))
@@ -317,6 +323,8 @@ def save_bill(db, shop_id, items, customer_name, customer_phone="", place_of_sal
                                     "please change the quantity")
     except BillError:
         raise
+    except CustomerError as e:
+        raise BillError(str(e))
     except Exception:
         raise BillError("Couldn't save the bill; nothing was changed")
     return bill_id
@@ -377,36 +385,41 @@ def receive_due(db, shop_id, bill_id, mode, other=""):
         db.execute("UPDATE bills SET due_amount = 0, due_date = '' WHERE id = ?", (bill_id,))
 
 
-def update_bill_customer(db, shop_id, bill_id, name, phone, location, place, customer_type):
-    """Correct the customer details on a saved bill, in place.
+def update_bill_customer(db, shop_id, bill_id, name, phone, other_phone, location, place,
+                         customer_type):
+    """Correct the customer details printed on one saved bill. Only this bill changes.
 
-    Only the customer's own information changes: the bill keeps its number, items, stock,
-    payments and total. The saved customer in Customer Details is updated to match, and a
-    customer left with no bills (a mistyped name, say) is removed from the list.
+    The bill keeps its number, items, stock, payments, total and its link to a customer record;
+    no other bill and no customer record is touched. Returns the customer the new phone number
+    belongs to when that is somebody other than the bill's own customer (so the page can offer
+    to move the bill to them), otherwise None.
     """
-    name, phone, location, place = name.strip(), phone.strip(), location.strip(), place.strip()
-    if not name:
-        raise BillError("Please enter the customer's name")
-    if phone and not 7 <= sum(c.isdigit() for c in phone) <= 15:
-        raise BillError("The phone number doesn't look right")
+    from .customers import find_by_phone, normalize_phone
+    name, location, place = name.strip(), location.strip(), place.strip()
+    digits, error = normalize_phone(phone)
+    if error:
+        raise BillError(error)
+    try:
+        other_phone = clean_other_phone(other_phone)
+    except CustomerError as e:
+        raise BillError(str(e))
     if customer_type not in CUSTOMER_TYPES:
         raise BillError("Please choose Retail or B2B")
+    bill = db.execute("SELECT customer_id FROM bills WHERE id = ? AND shop_id = ?",
+                      (bill_id, shop_id)).fetchone()
+    if bill is None:
+        raise BillError("That bill wasn't found")
+    if not name:
+        if bill["customer_id"]:
+            raise BillError("Please enter the customer's name")
+        name = "Walk-in customer"
     try:
         with db:
-            bill = db.execute("SELECT customer_id FROM bills WHERE id = ? AND shop_id = ?",
-                              (bill_id, shop_id)).fetchone()
-            if bill is None:
-                raise BillError("That bill wasn't found")
-            customer_id = save_customer(db, shop_id, name, phone, location, customer_type)
             db.execute("UPDATE bills SET customer_name = ?, customer_phone = ?, "
-                       "customer_location = ?, place_of_sale = ?, customer_type = ?, "
-                       "customer_id = ? WHERE id = ?",
-                       (name, phone, location, place, customer_type, customer_id, bill_id))
-            old = bill["customer_id"]
-            if old and old != customer_id and db.execute(
-                    "SELECT 1 FROM bills WHERE customer_id = ?", (old,)).fetchone() is None:
-                db.execute("DELETE FROM customers WHERE id = ?", (old,))
-    except BillError:
-        raise
+                       "customer_other_phone = ?, customer_location = ?, place_of_sale = ?, "
+                       "customer_type = ? WHERE id = ?",
+                       (name, digits, other_phone, location, place, customer_type, bill_id))
     except Exception:
         raise BillError("Couldn't save the changes; nothing was changed")
+    owner = find_by_phone(db, shop_id, digits)
+    return owner if owner is not None and owner["id"] != bill["customer_id"] else None

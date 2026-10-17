@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Merge customers{% endblock %}
+{% block main_class %}page medium{% endblock %}
+{% block content %}
+<h1>Merge customers</h1>
+<p class="muted">Check this before you confirm. It can't be undone from the app.</p>
+
+{% macro person(c, heading) %}
+<div class="card">
+  <h2>{{ heading }}</h2>
+  <p><strong>{{ c.name }}</strong></p>
+  <p class="muted">
+    Mobile: {{ c.phone or ('No phone, older bill' if c.legacy else 'No phone') }}<br>
+    {% if c.other_phone %}Other phone: {{ c.other_phone }}<br>{% endif %}
+    {% if c.location %}Location: {{ c.location }}<br>{% endif %}
+    {{ c.bill_count }} bill{{ '' if c.bill_count == 1 else 's' }} · {{ c.spent | rupees }} billed
+  </p>
+</div>
+{% endmacro %}
+
+<div class="form-cols">
+  {{ person(source, 'This customer is removed') }}
+  {{ person(target, 'Everything moves into') }}
+</div>
+
+<ul>
+  <li>All {{ source.bill_count }} saved bill{{ '' if source.bill_count == 1 else 's' }} (and any cancelled ones) of {{ source.name }} will belong to {{ target.name }}.</li>
+  <li>{{ target.name }} keeps their own name, location and details.</li>
+  {% if source.phone and not target.phone %}<li>{{ target.name }} has no mobile number, so <strong>{{ source.phone }}</strong> is copied across.</li>
+  {% elif source.phone and target.phone and source.phone != target.phone %}<li>{{ source.name }} has a different number, <strong>{{ source.phone }}</strong>, which will no longer be kept.</li>{% endif %}
+  <li>Bills already made keep the name and phone that were printed on them.</li>
+</ul>
+
+<form method="post" class="form">
+  <input type="hidden" name="into" value="{{ target.id }}">
+  <button class="btn primary" type="submit">Yes, merge them</button>
+  <a class="btn" href="{{ url_for('customers.detail', customer_id=source.id) }}">Cancel</a>
+</form>
+{% endblock %}

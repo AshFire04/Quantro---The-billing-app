@@ -222,7 +222,9 @@ $("clear").onclick = () => {
   renderOffers();
   $("customer").value = "";
   $("phone").value = "";
-  $("phone-note").hidden = true;
+  $("other-phone").value = "";
+  selectedCustomer = null;
+  showNote("");
   $("location").value = "";
   $("place").value = defaultPlace;
   showOther($("place"), $("place-other"));
@@ -233,32 +235,107 @@ $("clear").onclick = () => {
   renderBill();
 };
 
-// ---- Saved customers: typing a phone number finds them (by phone only, never by name) ----
+// ---- Customers ----
+// A customer is a saved record with an id. The phone number finds one exactly; the name box
+// searches and only fills the form when you click a match. A name alone never merges anyone.
 
-let lookupTimer = null;
+let selectedCustomer = null;                 // the saved customer this bill is for, or null
+
+// The same tidy-up the server does: +91, 91, 0091 or a leading 0 come off, then 10 digits.
+function phoneDigits(text) {
+  let d = (text || "").replace(/\D/g, "");
+  if (d.length === 14 && d.startsWith("0091")) d = d.slice(4);
+  else if (d.length === 12 && d.startsWith("91")) d = d.slice(2);
+  else if (d.length === 11 && d.startsWith("0")) d = d.slice(1);
+  return d;
+}
+const isMobile = d => /^[6-9]\d{9}$/.test(d);
+const typeRadios = () => document.querySelectorAll('input[name="customer-type"]');
+
+function showNote(text, tone) {
+  const note = $("phone-note");
+  note.className = "small " + (tone || "muted");
+  note.textContent = text;
+  note.hidden = !text;
+  if (selectedCustomer && tone === "ok") {
+    const clear = document.createElement("button");
+    clear.type = "button"; clear.className = "link-button"; clear.textContent = "Not them? Clear";
+    clear.onclick = () => { selectedCustomer = null; showNote(""); };
+    note.append(" ", clear);
+  }
+}
+
+function pickCustomer(c) {
+  selectedCustomer = c;
+  $("customer").value = c.name;
+  $("location").value = c.location;
+  $("other-phone").value = c.other_phone;
+  if (c.phone) $("phone").value = c.phone;
+  for (const r of typeRadios()) r.checked = r.value === c.customer_type;
+  $("customer-results").hidden = true;
+  showNote(`Saved customer: ${c.name}. Last bill ${c.last_bill || "none yet"} · ${c.bill_count} bill` +
+           `${c.bill_count === 1 ? "" : "s"} · ${c.total} billed.`, "ok");
+}
+
+let phoneTimer = null;
 $("phone").oninput = () => {
-  clearTimeout(lookupTimer);
-  $("phone-note").hidden = true;
-  if ($("phone").value.replace(/\D/g, "").length < 7) return;
-  lookupTimer = setTimeout(async () => {
-    const asked = $("phone").value;
+  clearTimeout(phoneTimer);
+  const d = phoneDigits($("phone").value);
+  if (selectedCustomer && selectedCustomer.phone !== d) selectedCustomer = null;   // a different number
+  if (!d) return showNote("");
+  if (d.length < 10 && !(d.length > 10)) return showNote("");
+  if (!isMobile(d)) {
+    return showNote("Enter a 10-digit mobile number starting with 6, 7, 8 or 9. A landline can go in Other phone.", "bad");
+  }
+  if (selectedCustomer) return;
+  phoneTimer = setTimeout(async () => {
     try {
-      const data = await (await fetch("/customers/lookup?phone=" + encodeURIComponent(asked))).json();
-      if ($("phone").value !== asked) return;             // they kept typing
-      if (data.found) {
-        $("customer").value = data.name;
-        $("location").value = data.location;
-        for (const r of document.querySelectorAll('input[name="customer-type"]')) {
-          r.checked = r.value === data.customer_type;
-        }
-        $("phone-note").textContent = "Saved customer found. Their details were filled in.";
-      } else {
-        $("phone-note").textContent = "New customer. They will be saved when you save the bill.";
-      }
-      $("phone-note").hidden = false;
-    } catch (err) { /* offline: just carry on and type the details */ }
-  }, 300);
+      const data = await (await fetch("/customers/lookup?phone=" + encodeURIComponent(d))).json();
+      if (phoneDigits($("phone").value) !== d) return;                  // they kept typing
+      if (data.found) pickCustomer(data);
+      else showNote("New customer. Enter their name; they are saved when you save the bill.");
+    } catch (err) { /* offline: carry on and type the details */ }
+  }, 250);
 };
+
+// The name box: matches by name or phone, with an "Add as new customer" choice at the end.
+let nameTimer = null;
+async function showNameMatches() {
+  const q = $("customer").value.trim();
+  let list = [];
+  try {
+    list = (await (await fetch("/customers/search?q=" + encodeURIComponent(q))).json()).customers;
+  } catch (err) { return; }
+  if ($("customer").value.trim() !== q) return;
+  const box = $("customer-results");
+  box.replaceChildren(...list.map(c => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "pick";
+    const name = document.createElement("strong"); name.textContent = c.name;
+    const rest = document.createElement("span");
+    rest.textContent = [c.phone || (c.legacy ? "No phone, older bill" : "No phone"), c.location,
+                        c.last_bill ? "last bill " + c.last_bill : "no bills yet"].filter(Boolean).join(" · ");
+    b.append(name, rest);
+    b.onmousedown = e => { e.preventDefault(); pickCustomer(c); };
+    return b;
+  }));
+  if (q) {
+    const add = document.createElement("button");
+    add.type = "button"; add.className = "pick add";
+    add.textContent = `+ Add “${q}” as new customer`;
+    add.onmousedown = e => {
+      e.preventDefault();
+      selectedCustomer = null;
+      box.hidden = true;
+      showNote("New customer. They are saved when you save the bill.");
+    };
+    box.append(add);
+  }
+  box.hidden = box.children.length === 0;
+}
+$("customer").oninput = () => { clearTimeout(nameTimer); nameTimer = setTimeout(showNameMatches, 250); };
+$("customer").onfocus = showNameMatches;
+$("customer").onblur = () => setTimeout(() => { $("customer-results").hidden = true; }, 150);
 
 // ---- The offer tick-boxes ----
 
@@ -400,6 +477,8 @@ $("save").onclick = async () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ items, customer: $("customer").value, phone: $("phone").value,
+                             other_phone: $("other-phone").value,
+                             customer_id: selectedCustomer ? selectedCustomer.id : null,
                              location: $("location").value,
                              whole_discount: $("whole-discount").value, shipping: $("shipping").value,
                              due_amount: dueOpen ? $("due-amount").value : "",
@@ -432,6 +511,8 @@ function applyPrefill(old) {
   }
   $("customer").value = old.customer;
   $("phone").value = old.phone;
+  $("other-phone").value = old.other_phone;
+  if (old.customer_id) selectedCustomer = { id: old.customer_id, phone: phoneDigits(old.phone) };
   $("location").value = old.location;
   if ([...$("place").options].some(o => o.value === old.place && o.value !== "Other")) {
     $("place").value = old.place;
