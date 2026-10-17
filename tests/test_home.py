@@ -110,3 +110,10 @@ def test_target_is_saved_in_shop_details(client):
     assert b"Sold" in client.get("/home").data
     bad = client.post("/settings/target", data={"monthly_target": "lots"}, follow_redirects=True)
     assert b"as an amount" in bad.data
+
+
+def test_month_tile_has_the_months_sales_and_bills(shop):
+    save(shop, [{"product_id": 1, "quantity": 1}], "Asha")
+    save(shop, [{"product_id": 1, "quantity": 2}], "Ravi")
+    f = home_figures(shop, 1)
+    assert f["month_sales"] == 135000 and f["bills_month"] == 2

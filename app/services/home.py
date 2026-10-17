@@ -45,6 +45,9 @@ def home_figures(db, shop_id, today=None):
     bills_today = db.execute(
         "SELECT COUNT(*) FROM bills WHERE shop_id = ? AND status != 'Cancelled' "
         "AND substr(created_at, 1, 10) = ?", (shop_id, day)).fetchone()[0]
+    bills_month = db.execute(
+        "SELECT COUNT(*) FROM bills WHERE shop_id = ? AND status != 'Cancelled' "
+        "AND substr(created_at, 1, 10) BETWEEN ? AND ?", (shop_id, month_start, day)).fetchone()[0]
     due = db.execute(
         "SELECT COALESCE(SUM(due_amount), 0), COUNT(*) FROM bills "
         "WHERE shop_id = ? AND status != 'Cancelled' AND due_amount > 0", (shop_id,)).fetchone()
@@ -78,6 +81,8 @@ def home_figures(db, shop_id, today=None):
     return {
         "today_sales": sales_between(day, day),
         "bills_today": bills_today,
+        "month_sales": sales_between(month_start, day),
+        "bills_month": bills_month,
         "low_count": len(running_low),
         "running_low": running_low[:5],
         "pending_amount": due[0],

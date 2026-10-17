@@ -96,9 +96,9 @@ def test_unsold_products_are_listed_and_the_page_loads(client, app):
     product(client, "Tray", "450", cost="300", supplier="Mehta")
     product(client, "Cushion", "300")
     page = client.get("/profit").data.decode()
-    assert "Profit Statement" in page and "Tray" in page and "Cushion" in page
+    assert "<h1>Profit</h1>" in page and "Tray" in page and "Cushion" in page
     assert "Mehta" in page and "₹150.00" in page                   # profit per item
-    assert "Profit Statement" in client.get("/home").data.decode()  # menu tab
+    assert ">Profit</a>" in client.get("/home").data.decode()      # menu tab
 
 
 def test_shops_are_kept_separate(client, app):
@@ -183,3 +183,25 @@ def test_old_databases_with_a_vendor_column_are_upgraded(app):
         init_db()
     columns = [r[1] for r in sqlite3.connect(path).execute("PRAGMA table_info(products)")]
     assert "supplier" in columns and "vendor" not in columns
+
+
+def test_profit_excel_matches_the_page_and_follows_the_dates(client):
+    create(client)
+    product(client, "Tray", "450", cost="300", supplier="Mehta")
+    product(client, "Mystery", "200")
+    bill(client, [{"product_id": 1, "quantity": 2}, {"product_id": 2, "quantity": 1}])
+    assert "/profit/export.xlsx" in client.get("/profit").data.decode()
+    res = client.get("/profit/export.xlsx")
+    assert res.status_code == 200 and "spreadsheetml" in res.mimetype
+    rows = list(load_workbook(BytesIO(res.data))["Profit"].iter_rows(values_only=True))
+    header = rows[2]
+    tray = dict(zip(header, next(r for r in rows if r[0] == "Tray")))
+    assert (tray["Supplier"], tray["Sales"], tray["Cost"], tray["Profit"]) == ("Mehta", 900, 600, 300)
+    total = dict(zip(header, next(r for r in rows if r[0] == "Total")))
+    assert total["Profit"] == 300 and total["Quantity sold"] == 3
+    assert any(r[0] and "not counted" in str(r[0]) for r in rows)
+    old = client.get("/profit/export.xlsx?date_from=2000-01-01&date_to=2000-01-02")
+    rows = list(load_workbook(BytesIO(old.data))["Profit"].iter_rows(values_only=True))
+    assert dict(zip(header, next(r for r in rows if r[0] == "Total")))["Profit"] == 0
+    client.get("/logout")
+    assert client.get("/profit/export.xlsx").status_code == 302

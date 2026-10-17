@@ -73,3 +73,48 @@ def bills_workbook(db, bills):
     out = BytesIO()
     wb.save(out)
     return out.getvalue()
+
+
+def profit_workbook(figures, start="", end=""):
+    """One sheet: a row per product, then a totals row. Amounts are in rupees."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Profit"
+    ws.append(["Period", f"{start or 'start'} to {end or 'today'}"])
+    ws.append([])
+    ws.append(["Product", "Item code", "Supplier", "Cost price", "Selling price", "Profit per item",
+               "Quantity sold", "Sales", "Cost", "Profit", "Margin %"])
+    header_row = 3
+    for r in figures["rows"]:
+        ws.append([r["name"] + (" (removed)" if r["removed"] else ""), r["code"], r["supplier"],
+                   r["cost_price"] / 100 if r["cost_price"] else None,
+                   r["price"] / 100 if r["price"] else None,
+                   r["per_item"] / 100 if r["per_item"] is not None else None,
+                   r["qty"] or None, r["revenue"] / 100 if r["revenue"] else None,
+                   r["cost"] / 100 if r["cost"] else None,
+                   r["profit"] / 100 if r["revenue"] else None,
+                   round(r["margin"], 1) if r["margin"] is not None else None])
+    ws.append(["Total", "", "", None, None, None, sum(r["qty"] for r in figures["rows"]) or None,
+               figures["revenue"] / 100, figures["cost"] / 100, figures["profit"] / 100,
+               round(figures["margin"], 1) if figures["margin"] is not None else None])
+    if figures["unknown_revenue"]:
+        ws.append([])
+        ws.append([f"Sales of {figures['unknown_revenue'] / 100:,.2f} are not counted: "
+                   "those items have no cost price."])
+    for cell in ws[header_row]:
+        cell.font = Font(bold=True)
+    for cell in ws[header_row + len(figures["rows"]) + 1]:
+        cell.font = Font(bold=True)
+    for row in ws.iter_rows(min_row=header_row + 1):
+        for cell in row:
+            if isinstance(cell.value, str):
+                cell.data_type = "s"            # text stays text, never a formula
+            elif cell.column in (4, 5, 6, 8, 9, 10):
+                cell.number_format = MONEY
+    ws.freeze_panes = ws.cell(row=header_row + 1, column=2)
+    for number, column in enumerate(ws.iter_cols(min_row=header_row, max_row=ws.max_row - 0), 1):
+        width = max(len(str(c.value)) if c.value is not None else 0 for c in column)
+        ws.column_dimensions[get_column_letter(number)].width = min(max(width + 2, 10), 40)
+    out = BytesIO()
+    wb.save(out)
+    return out.getvalue()

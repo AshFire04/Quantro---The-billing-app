@@ -24,9 +24,11 @@
 
 <div class="tiles">
   <div class="card tile"><span class="muted">Today's sales</span>
-    <strong class="mono">{{ f.today_sales | rupees }}</strong></div>
-  <div class="card tile"><span class="muted">Bills today</span>
-    <strong class="mono">{{ f.bills_today }}</strong></div>
+    <strong class="mono">{{ f.today_sales | rupees }}</strong>
+    <span class="muted">{{ f.bills_today }} bill{{ '' if f.bills_today == 1 else 's' }} today</span></div>
+  <div class="card tile"><span class="muted">{{ f.month_name }}'s sales</span>
+    <strong class="mono">{{ f.month_sales | rupees }}</strong>
+    <span class="muted">{{ f.bills_month }} bill{{ '' if f.bills_month == 1 else 's' }} this month</span></div>
   <div class="card tile"><span class="muted">Items running low</span>
     <strong class="mono">{{ f.low_count }}</strong>
     <span class="muted">{{ 'Reorder soon' if f.low_count else 'All well stocked' }}</span></div>
@@ -100,7 +102,7 @@
       <ul class="legend">
         <li><span class="swatch c0"></span>Profit <strong class="mono">{{ m.profit | rupees }}</strong></li>
         <li><span class="swatch c-rest"></span>Cost of items <strong class="mono">{{ m.cost | rupees }}</strong></li>
-        <li class="muted">Sales counted <span class="mono">{{ m.revenue | rupees }}</span> · <a href="{{ url_for('profit.index') }}">Profit Statement</a></li>
+        <li class="muted">Sales counted <span class="mono">{{ m.revenue | rupees }}</span> · <a href="{{ url_for('profit.index') }}">Profit</a></li>
         {% if m.unknown_revenue %}<li class="muted">{{ m.unknown_revenue | rupees }} of sales left out: no cost price</li>{% endif %}
       </ul>
     </div>

@@ -1,9 +1,10 @@
 {% extends "base.html" %}
 {% block main_class %}page spread{% endblock %}
-{% block title %}Profit Statement{% endblock %}
+{% block title %}Profit{% endblock %}
 {% block content %}
 <div class="page-head">
-  <h1>Profit Statement</h1>
+  <h1>Profit</h1>
+  <a class="btn" href="{{ url_for('profit.export', **request.args) }}">Download Excel</a>
 </div>
 <p class="muted">Profit is what each item sold for (after any bill discount) minus what it cost you. Cancelled bills are left out.</p>
 
