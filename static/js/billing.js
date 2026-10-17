@@ -218,6 +218,7 @@ $("clear").onclick = () => {
   $("whole-discount").value = "";
   $("shipping").value = "";
   picked.clear();
+  for (const o of offers) picked.add(o.id);             // offers are ticked again on a fresh bill
   renderOffers();
   $("customer").value = "";
   $("phone").value = "";
@@ -465,6 +466,7 @@ function applyPrefill(old) {
 }
 
 if (prefill) applyPrefill(prefill);
+else for (const o of offers) picked.add(o.id);          // a new bill starts with every offer ticked
 renderOffers();
 renderCategories();
 renderCards();

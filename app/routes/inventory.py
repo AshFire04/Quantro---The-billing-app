@@ -93,11 +93,15 @@ def read_form(product_id=None):
     if values["stock"] < 0 or values["low_stock_level"] < 0:
         return values, "Stock and low-stock level can't be negative"
     if values["code"]:
+        # A code is used for good: a removed product keeps its code, so it can't come back.
         clash = get_db().execute(
-            "SELECT id FROM products WHERE shop_id = ? AND code = ? AND active = 1 "
-            "AND id != ?", (g.shop["id"], values["code"], product_id or 0)).fetchone()
-        if clash:
+            "SELECT active FROM products WHERE shop_id = ? AND code = ? AND id != ?",
+            (g.shop["id"], values["code"], product_id or 0)).fetchone()
+        if clash and clash["active"]:
             return values, f"Another product already uses the code {values['code']}"
+        if clash:
+            return values, (f"The code {values['code']} was used by a product that has been "
+                            "removed, so it can't be used again")
     return values, None
 
 
@@ -158,7 +162,7 @@ def remove(product_id):
     db = get_db()
     with db:
         # Hide, don't delete: old bills still need to show what was sold.
-        # The code is cleared so a new product can reuse it (bill lines keep their own copy).
-        db.execute("UPDATE products SET active = 0, code = NULL WHERE id = ? AND shop_id = ?",
+        # The code stays with it, so no new product can ever take the same code.
+        db.execute("UPDATE products SET active = 0 WHERE id = ? AND shop_id = ?",
                    (product_id, g.shop["id"]))
     return redirect(url_for("inventory.index"))

@@ -24,8 +24,14 @@ def test_add_edit_remove(client):
     assert b"Tray Big" in page and "₹500.50".encode() in page
     client.post("/inventory/1/remove")
     assert b"No products yet" in client.get("/inventory/").data
-    # a removed product's code can be used again
-    assert add(client, code="KA36").status_code == 302
+    # a code is used for good: even after the product is removed it can't be used again
+    res = add(client, code="KA36")
+    assert res.status_code == 200 and b"has been removed" in res.data
+    assert add(client, code="ka36", name="Another").status_code == 200       # any capitals
+    assert add(client, code="KA37").status_code == 302                       # a new code is fine
+    res = client.post("/inventory/2/edit", data={"code": "KA36", "name": "Tray", "category": "",
+                                                 "price": "1", "stock": "1", "low_stock_level": "1"})
+    assert b"has been removed" in res.data                                   # editing can't take it either
 
 
 def test_status_and_filters(client):
