@@ -74,7 +74,7 @@ def test_upload_show_and_remove_a_qr_code(client, app):
     served.close()                       # on Windows an open response would keep the file locked
     client.post(f"/settings/qr/{row['id']}/delete")
     assert not os.path.exists(path) and client.get(f"/uploads/{row['filename']}").status_code == 404
-    assert b"No QR codes yet" in client.get("/settings").data
+    assert b"Add a QR code" in client.get("/settings").data
 
 
 def test_jpg_is_accepted(client):
@@ -143,10 +143,10 @@ def add_offer(client, **kw):
 def test_add_toggle_and_delete_an_offer(client):
     create(client)
     page = seen(add_offer(client))
-    assert 'Offer "Diwali bedsheets" added' in page and "15%" in page and 'Items in "Bedsheets"' in page
+    assert 'Offer "Diwali bedsheets" added' in page and "15%" in page and 'Items in “Bedsheets”' in page
     add_offer(client, name="Big bill", percentage="10", applies_to="bill", category="", min_amount="2500")
     page = seen(client.get("/settings"))
-    assert "Whole bill, when it reaches ₹2,500.00" in page
+    assert "All items, when the bill reaches ₹2,500.00" in page
     client.post("/settings/offers/1/toggle")
     assert ">Off<" in client.get("/settings").data.decode()
     client.post("/settings/offers/1/toggle")
@@ -321,13 +321,13 @@ def test_billing_page_lists_active_offers_and_the_bill_shows_the_offer(client):
     page = client.get("/billing").data.decode()
     assert "Diwali bedsheets" in page and "Old offer" not in page
     res = client.post("/billing/save", json={
-        "items": [{"product_id": 1, "quantity": 2}], "customer": "Asha", "order_source": "Stall",
+        "items": [{"product_id": 1, "quantity": 2}], "customer": "Asha", "order_source": "Instagram",
         "payments": CASH, "offer_ids": [1]})
     assert res.status_code == 200
     bill = client.get(res.get_json()["url"]).data.decode()
     assert "Offers applied: Diwali bedsheets" in bill and "₹1,700.00" in bill and "15% off" in bill
     bad = client.post("/billing/save", json={
-        "items": [{"product_id": 1, "quantity": 1}], "customer": "Asha", "order_source": "Stall",
+        "items": [{"product_id": 1, "quantity": 1}], "customer": "Asha", "order_source": "Instagram",
         "payments": CASH, "offer_ids": [2]})
     assert bad.status_code == 400 and "no longer available" in bad.get_json()["error"]
 
@@ -337,7 +337,7 @@ def test_editing_a_bill_keeps_its_offers_ticked_if_they_are_still_on(client):
     add(client, name="Bedsheet", category="Bedsheets", price="1000", stock="10")
     add_offer(client)
     client.post("/billing/save", json={
-        "items": [{"product_id": 1, "quantity": 2}], "customer": "Asha", "order_source": "Stall",
+        "items": [{"product_id": 1, "quantity": 2}], "customer": "Asha", "order_source": "Instagram",
         "payments": CASH, "offer_ids": [1]})
     assert '"offer_ids": [1]' in client.get("/billing/edit/1").data.decode()
     client.post("/settings/offers/1/toggle")                              # now switched off

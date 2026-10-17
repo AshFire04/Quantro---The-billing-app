@@ -9,7 +9,7 @@ from tests.test_inventory import add
 CASH = [{"mode": "Cash"}]         # one payment with no amount = the whole bill
 
 
-def save(db, items, customer_name, customer_phone="", order_source="Store (walk-in)",
+def save(db, items, customer_name, customer_phone="", order_source="Walk-in",
          payments=CASH, **more):
     """save_bill with sensible defaults, so each test only spells out what it is about."""
     return save_bill(db, 1, items, customer_name, customer_phone=customer_phone,
@@ -94,14 +94,14 @@ def test_save_through_the_website(client):
     assert b"Tray" in client.get("/billing").data
     res = client.post("/billing/save", json={"items": [{"product_id": 1, "quantity": 2}],
                                              "customer": "Asha", "phone": "98765 43210", "place_of_sale": "Karnataka",
-                                             "order_source": "Website", "payments": CASH})
+                                             "order_source": "WhatsApp", "payments": CASH})
     assert res.status_code == 200
     page = client.get(res.get_json()["url"]).data
-    assert b"Asha" in page and b"Website" in page and b"Cash" in page and b"98765 43210" in page and "₹900.00".encode() in page
+    assert b"Asha" in page and b"WhatsApp" in page and b"Cash" in page and b"98765 43210" in page and "₹900.00".encode() in page
     assert b"<td class=\"num mono\">3</td>" not in page  # stock is on Inventory, not the bill
     assert b">3<" in client.get("/inventory/").data
     bad = client.post("/billing/save", json={"items": [{"product_id": 1, "quantity": 9}], "customer": "Asha",
-                                             "order_source": "Stall", "payments": CASH})
+                                             "order_source": "Instagram", "payments": CASH})
     assert bad.status_code == 400 and "Only 3 left" in bad.get_json()["error"]
 
 
@@ -111,7 +111,7 @@ def test_cannot_bill_another_shops_product(client):
     client.get("/logout")
     create(client, login="other@example.com", shop="Other shop")
     res = client.post("/billing/save", json={"items": [{"product_id": 1, "quantity": 1}], "customer": "Asha",
-                                             "order_source": "Stall", "payments": CASH})
+                                             "order_source": "Instagram", "payments": CASH})
     assert res.status_code == 400
     assert client.get("/bills/1").status_code == 404
 
@@ -334,7 +334,7 @@ def test_discounts_through_the_website_and_on_the_saved_bill(client):
     add(client, name="Tray", price="450", stock="10")
     res = client.post("/billing/save", json={
         "items": [{"product_id": 1, "quantity": 2, "discount": "10"}], "customer": "Asha",
-        "order_source": "Stall", "payments": CASH, "whole_discount": "5", "shipping": "80"})
+        "order_source": "Instagram", "payments": CASH, "whole_discount": "5", "shipping": "80"})
     assert res.status_code == 200
     page = client.get(res.get_json()["url"]).data.decode()
     assert "₹900.00" in page and "₹810.00" in page and "10% off" in page   # original, then discounted
@@ -343,7 +343,7 @@ def test_discounts_through_the_website_and_on_the_saved_bill(client):
     assert "Round off" in page and "+0.50" in page and "₹850.00" in page   # 810 - 40.50 + 80 = 849.50
     bad = client.post("/billing/save", json={
         "items": [{"product_id": 1, "quantity": 1, "discount": "250"}], "customer": "Asha",
-        "order_source": "Stall", "payments": CASH})
+        "order_source": "Instagram", "payments": CASH})
     assert bad.status_code == 400 and "between 0 and 100" in bad.get_json()["error"]
 
 

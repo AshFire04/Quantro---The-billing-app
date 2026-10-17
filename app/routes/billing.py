@@ -5,7 +5,8 @@ from ..auth import login_required
 from ..db import get_db
 from datetime import date
 
-from ..services.billing import (BillError, CUSTOMER_TYPES, next_bill_label, ORDER_SOURCES, PAYMENT_MODES,
+from ..services import choices
+from ..services.billing import (BillError, CUSTOMER_TYPES, next_bill_label,
                                 save_bill)
 from ..services.states import DEFAULT_PLACE, PLACES
 from ..services.money import paise_to_input
@@ -35,17 +36,23 @@ def shop_products():
 def index():
     return render_template("billing.html", products=shop_products(),
                            next_label=next_bill_label(get_db(), g.shop["id"], date.today())[2],
-                           payment_modes=PAYMENT_MODES, order_sources=ORDER_SOURCES,
+                           payment_modes=choices.with_other(get_db(), g.shop["id"], "method"),
+                           order_sources=choices.with_other(get_db(), g.shop["id"], "source"),
                            places=PLACES, default_place=DEFAULT_PLACE,
                            customer_types=CUSTOMER_TYPES,
                            editing=None, prefill=None, skipped=[], offers=active_offers())
 
 
 def split_other(stored, allowed):
-    """'Other: Cheque' -> ('Other', 'Cheque'); 'UPI' -> ('UPI', '')."""
+    """'Other: Cheque' -> ('Other', 'Cheque'); 'UPI' -> ('UPI', '').
+
+    A name the shop has since removed from its list comes back as 'Other' with that name typed in.
+    """
     if stored.startswith("Other: "):
         return "Other", stored[len("Other: "):]
-    return (stored if stored in allowed else ""), ""
+    if stored in allowed or not stored:
+        return stored, ""
+    return "Other", stored
 
 
 @bp.route("/billing/edit/<int:bill_id>")
@@ -76,15 +83,17 @@ def edit(bill_id):
         items.append({"product_id": line["product_id"], "quantity": line["quantity"],
                       "discount": "%g" % line["line_discount_pct"] if line["line_discount_pct"] else ""})
 
+    pay_modes = choices.with_other(db, g.shop["id"], "method")
+    source_choices = choices.with_other(db, g.shop["id"], "source")
     payments = []
     for p in db.execute("SELECT mode, amount FROM payments WHERE bill_id = ? ORDER BY id",
                         (bill_id,)).fetchall():
-        mode, other = split_other(p["mode"], PAYMENT_MODES)
+        mode, other = split_other(p["mode"], pay_modes)
         payments.append({"mode": mode, "other": other, "amount": paise_to_input(p["amount"])})
     offers = active_offers()
     still_on = {o["id"] for o in offers}
     picked = [int(i) for i in old["offer_ids"].split(",") if i and int(i) in still_on]
-    source, source_other = split_other(old["order_source"], ORDER_SOURCES)
+    source, source_other = split_other(old["order_source"], source_choices)
     prefill = {
         "replaces": bill_id,
         "customer": old["customer_name"], "phone": old["customer_phone"],
@@ -99,7 +108,8 @@ def edit(bill_id):
     }
     return render_template("billing.html", products=products,
                            next_label=next_bill_label(get_db(), g.shop["id"], date.today())[2],
-                           payment_modes=PAYMENT_MODES, order_sources=ORDER_SOURCES,
+                           payment_modes=choices.with_other(get_db(), g.shop["id"], "method"),
+                           order_sources=choices.with_other(get_db(), g.shop["id"], "source"),
                            places=PLACES, default_place=DEFAULT_PLACE,
                            customer_types=CUSTOMER_TYPES,
                            editing=old, prefill=prefill, skipped=skipped, offers=offers)

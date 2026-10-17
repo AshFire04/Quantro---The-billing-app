@@ -47,7 +47,7 @@
   <div class="card table-wrap">
     <table>
       <thead>
-        <tr><th>Bill</th><th>Date</th><th>Customer</th><th>Place of sale</th><th class="num">Amount</th><th>Status</th><th class="num">UPI</th><th class="num">Cash</th><th class="num">Net-banking</th><th class="num">Due</th></tr>
+        <tr><th>Bill</th><th>Date</th><th>Customer</th><th>Place of sale</th><th class="num">Amount</th><th>Status</th>{% for c in columns %}<th class="num">{{ c }}</th>{% endfor %}<th class="num">Due</th></tr>
       </thead>
       <tbody>
       {% for b in bills %}
@@ -60,7 +60,7 @@
           {% set label, kind = bill_status(b) %}
           <td><span class="badge status-{{ kind }}">{{ label }}</span>
             {% if b.replaced_by_number %}<span class="muted">replaced by {{ b.replaced_by_number }}</span>{% endif %}</td>
-          {% for mode in ("UPI", "Cash", "Net-banking") %}
+          {% for mode in columns %}
           {% set amount = paid.get(b.id, {}).get(mode, 0) %}
           <td class="num mono">{{ (amount | rupees) if amount else "-" }}</td>
           {% endfor %}

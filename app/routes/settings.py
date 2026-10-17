@@ -6,6 +6,7 @@ from flask import (Blueprint, abort, current_app, flash, g, redirect, render_tem
 
 from ..auth import login_required
 from ..db import get_db
+from ..services import choices
 from ..services.billing import BillError, parse_percent
 from ..services.money import paise_to_input, rupees_to_paise
 
@@ -30,7 +31,9 @@ def index():
         "AND category != '' ORDER BY category COLLATE NOCASE", (g.shop["id"],))]
     return render_template("settings.html", offers=offers, qr_codes=qr_codes,
                            categories=categories, paise_to_input=paise_to_input,
-                           max_qr_codes=MAX_QR_CODES)
+                           max_qr_codes=MAX_QR_CODES,
+                           sources=choices.rows(db, g.shop["id"], "source"),
+                           methods=choices.rows(db, g.shop["id"], "method"))
 
 
 @bp.route("/settings/details", methods=("POST",))
@@ -66,6 +69,34 @@ def target():
         db.execute("UPDATE shops SET monthly_target = ? WHERE id = ?", (paise, g.shop["id"]))
     flash("Monthly sales target saved", "ok")
     return redirect(url_for("settings.index"))
+
+
+# ---- Order sources and payment methods: the shop's own lists ----
+
+def kind_of(word):
+    """The page addresses are /settings/sources/... and /settings/payments/..."""
+    return {"sources": "source", "payments": "method"}.get(word) or abort(404)
+
+
+@bp.route("/settings/<any(sources,payments):word>", methods=("POST",))
+@login_required
+def add_choice(word):
+    kind = kind_of(word)
+    error = choices.add(get_db(), g.shop["id"], kind, request.form.get("name", ""))
+    if error:
+        flash(error)
+    else:
+        flash(f"\"{' '.join(request.form['name'].split())}\" added", "ok")
+    return redirect(url_for("settings.index") + "#" + ("sources" if kind == "source" else "payments"))
+
+
+@bp.route("/settings/<any(sources,payments):word>/<int:choice_id>/delete", methods=("POST",))
+@login_required
+def delete_choice(word, choice_id):
+    kind = kind_of(word)
+    if not choices.remove(get_db(), g.shop["id"], kind, choice_id):
+        abort(404)
+    return redirect(url_for("settings.index") + "#" + ("sources" if kind == "source" else "payments"))
 
 
 # ---- Saved offers ----

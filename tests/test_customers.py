@@ -41,7 +41,7 @@ def test_b2b_without_a_phone_also_keeps_the_plain_name(client):
     setup(client)
     client.post("/billing/save", json={
         "items": [{"product_id": 1, "quantity": 1}], "customer": "Sharma Stores",
-        "order_source": "Stall", "payments": [{"mode": "Cash"}], "customer_type": "B2B"})
+        "order_source": "Instagram", "payments": [{"mode": "Cash"}], "customer_type": "B2B"})
     page = customers(client)
     assert "<td>Sharma Stores</td>" in page and "B2B -" not in page and "<td>B2B</td>" in page
 
@@ -50,7 +50,7 @@ def test_lookup_is_by_phone_only(client):
     setup(client)
     client.post("/billing/save", json={
         "items": [{"product_id": 1, "quantity": 1}], "customer": "Asha", "phone": "98765 43210",
-        "location": "Indiranagar", "order_source": "Stall", "payments": [{"mode": "Cash"}],
+        "location": "Indiranagar", "order_source": "Instagram", "payments": [{"mode": "Cash"}],
         "customer_type": "B2B"})
     found = client.get("/customers/lookup?phone=9876543210").get_json()
     assert found == {"found": True, "name": "Asha", "location": "Indiranagar",
@@ -63,7 +63,7 @@ def test_lookup_is_by_phone_only(client):
 def test_a_blank_location_does_not_wipe_the_saved_one(client):
     setup(client)
     body = {"items": [{"product_id": 1, "quantity": 1}], "customer": "Asha",
-            "phone": "9876543210", "order_source": "Stall", "payments": [{"mode": "Cash"}]}
+            "phone": "9876543210", "order_source": "Instagram", "payments": [{"mode": "Cash"}]}
     client.post("/billing/save", json={**body, "location": "Indiranagar"})
     client.post("/billing/save", json=body)
     assert client.get("/customers/lookup?phone=9876543210").get_json()["location"] == "Indiranagar"
@@ -85,7 +85,7 @@ def test_failed_bill_saves_no_customer(client):
     setup(client)
     res = client.post("/billing/save", json={
         "items": [{"product_id": 1, "quantity": 999}], "customer": "Asha", "phone": "9876543210",
-        "order_source": "Stall", "payments": [{"mode": "Cash"}]})
+        "order_source": "Instagram", "payments": [{"mode": "Cash"}]})
     assert res.status_code == 400
     assert "No customers yet" in customers(client)
 

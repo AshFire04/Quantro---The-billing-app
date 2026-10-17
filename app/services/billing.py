@@ -6,11 +6,10 @@ recalculated here from the products in the database.
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
+from . import choices
 from .customers import save_customer
 from .money import format_rupees, rupees_to_paise, take_percent_off
 
-PAYMENT_MODES = ["UPI", "Cash", "Net-banking", "Other"]
-ORDER_SOURCES = ["Store (walk-in)", "Stall", "Website", "Other"]
 CUSTOMER_TYPES = ["Retail", "B2B"]
 
 
@@ -19,7 +18,8 @@ class BillError(Exception):
 
 
 def clean_choice(value, other, allowed, what):
-    """A dropdown answer. 'Other' needs the typed text and is stored as 'Other: text'."""
+    """A dropdown answer. `allowed` is the shop's list plus 'Other', which needs the typed
+    text and is stored as 'Other: text'."""
     value = (value or "").strip()
     other = (other or "").strip()
     if value not in allowed:
@@ -96,12 +96,13 @@ def check_order_date(order_date):
     return day
 
 
-def check_payments(payments, total):
+def check_payments(payments, total, modes):
     """Turn the payments from the page into [(mode, paise)] that add up to `total`.
 
     `total` is what is being paid now: the bill total minus any amount left due.
     One payment with no amount means "all of it". Several payments (a split) must
-    each have an amount, and the amounts must add up exactly.
+    each have an amount, and the amounts must add up exactly. `modes` is what the shop's
+    payment dropdown offers (its payment methods plus 'Other').
     """
     if total == 0:
         return []                     # the whole bill is due later, so nothing is paid now
@@ -110,7 +111,7 @@ def check_payments(payments, total):
     checked = []
     whole_bill = len(payments) == 1 and str(payments[0].get("amount") or "").strip() == ""
     for p in payments:
-        mode = clean_choice(p.get("mode"), p.get("other"), PAYMENT_MODES, "payment mode")
+        mode = clean_choice(p.get("mode"), p.get("other"), modes, "payment mode")
         if whole_bill:
             amount = total
         else:
@@ -252,7 +253,9 @@ def save_bill(db, shop_id, items, customer_name, customer_phone="", place_of_sal
         raise BillError("Please enter the customer's name")
     if customer_phone and not 7 <= sum(c.isdigit() for c in customer_phone) <= 15:
         raise BillError("The phone number doesn't look right")
-    source = clean_choice(order_source, order_source_other, ORDER_SOURCES, "order source")
+    source = clean_choice(order_source, order_source_other,
+                          choices.with_other(db, shop_id, "source"), "order source")
+    pay_modes = choices.with_other(db, shop_id, "method")
     typed_whole = str(whole_discount if whole_discount is not None else "").strip()
     whole_pct = parse_percent(typed_whole, "The whole-bill discount") if typed_whole else None
     shipping_paise = parse_shipping(shipping)
@@ -270,7 +273,7 @@ def save_bill(db, shop_id, items, customer_name, customer_phone="", place_of_sal
             priced = price_details(db, shop_id, items, whole_pct, shipping_paise, offers)
             lines, total = priced["lines"], priced["total"]
             due = check_due(due_amount, total)
-            payments = check_payments(payments, total - due)
+            payments = check_payments(payments, total - due, pay_modes)
             customer_id = save_customer(db, shop_id, customer_name, customer_phone,
                                         customer_location, customer_type)
             shop = db.execute("SELECT next_invoice_number FROM shops WHERE id = ?",
@@ -358,7 +361,7 @@ def bill_status(bill):
 
 def receive_due(db, shop_id, bill_id, mode, other=""):
     """The customer has paid what was due. Records it as a payment and clears the due amount."""
-    mode = clean_choice(mode, other, PAYMENT_MODES, "payment mode")
+    mode = clean_choice(mode, other, choices.with_other(db, shop_id, "method"), "payment mode")
     with db:
         bill = db.execute("SELECT * FROM bills WHERE id = ? AND shop_id = ?",
                           (bill_id, shop_id)).fetchone()

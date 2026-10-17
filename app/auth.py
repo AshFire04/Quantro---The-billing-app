@@ -5,6 +5,7 @@ from flask import (Blueprint, flash, g, redirect, render_template, request,
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from .db import get_db
+from .services.choices import seed_defaults
 
 bp = Blueprint("auth", __name__)
 
@@ -74,6 +75,7 @@ def create_shop():
             with db:
                 shop_id = db.execute("INSERT INTO shops (name) VALUES (?)",
                                      (shop_name,)).lastrowid
+                seed_defaults(db, shop_id)
                 user_id = db.execute(
                     "INSERT INTO users (shop_id, name, login, password_hash) "
                     "VALUES (?, ?, ?, ?)",

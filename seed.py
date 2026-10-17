@@ -14,6 +14,7 @@ from werkzeug.security import generate_password_hash
 from app import create_app
 from app.db import get_db
 from app.services.billing import save_bill
+from app.services.choices import seed_defaults
 from app.services.money import rupees_to_paise
 
 LOGIN = "sample@quantro.example"
@@ -45,18 +46,18 @@ OFFERS = [
 
 # Sample bills: days ago, customer, [(code, quantity)], extras for save_bill
 BILLS = [
-    (6, "Meena Stores", [("KA36", 3), ("TB04", 2)], {"order_source": "Store (walk-in)"}),
-    (5, "Anita Rao", [("CU10", 4)], {"order_source": "Website"}),
-    (4, "Walk-in customer", [("TW02", 2), ("TW03", 1)], {"order_source": "Store (walk-in)"}),
+    (6, "Meena Stores", [("KA36", 3), ("TB04", 2)], {"order_source": "Walk-in"}),
+    (5, "Anita Rao", [("CU10", 4)], {"order_source": "WhatsApp"}),
+    (4, "Walk-in customer", [("TW02", 2), ("TW03", 1)], {"order_source": "Walk-in"}),
     (3, "Ravi Kumar", [("RG05", 1), ("CR01", 2)],
-     {"order_source": "Stall", "payments": [{"mode": "UPI"}]}),
+     {"order_source": "Instagram", "payments": [{"mode": "UPI"}]}),
     (2, "Sunita Devi", [("KA52", 2), ("CU20", 2)],
-     {"order_source": "Website", "payments": [{"mode": "Net-banking"}]}),
-    (1, "Walk-in customer", [("TB07", 1)], {"order_source": "Store (walk-in)"}),
+     {"order_source": "WhatsApp", "payments": [{"mode": "Card"}]}),
+    (1, "Walk-in customer", [("TB07", 1)], {"order_source": "Walk-in"}),
     (0, "Priya Nair", [("KA37", 1), ("CU12", 1), ("CR01", 1)],
-     {"order_source": "Store (walk-in)", "whole_discount": "5"}),
+     {"order_source": "Walk-in", "whole_discount": "5"}),
     (0, "Meena Stores", [("TW02", 6), ("TB04", 4)],
-     {"order_source": "Store (walk-in)", "due_amount": "1200", "customer_type": "B2B"}),
+     {"order_source": "Walk-in", "due_amount": "1200", "customer_type": "B2B"}),
 ]
 
 
@@ -75,6 +76,7 @@ def main(app=None):
                  "SAMPLE ONLY - A/c name: Sample Home Furnishings\nA/c no: 0000 0000 0000\nIFSC: SAMP0000001",
                  "Goods once sold will not be taken back. (sample terms)",
                  rupees_to_paise("25000"))).lastrowid
+            seed_defaults(db, shop_id)
             db.execute("INSERT INTO users (shop_id, name, login, password_hash) VALUES (?, ?, ?, ?)",
                        (shop_id, "Sample Owner", LOGIN, generate_password_hash(PASSWORD)))
             for code, name, category, price, stock, low in PRODUCTS:
@@ -92,13 +94,14 @@ def main(app=None):
         for days_ago, customer, items, extras in BILLS:
             extras = dict(extras)
             extras.setdefault("payments", [{"mode": "Cash"}])
-            bill_id = save_bill(db, shop_id,
-                                [{"product_id": ids[c], "quantity": q} for c, q in items],
-                                customer, **extras)
             when = (datetime.now() - timedelta(days=days_ago)).replace(
                 hour=random.randint(10, 18), minute=random.randint(0, 59), second=0, microsecond=0)
             if days_ago == 0:
                 when = min(when, datetime.now())
+            # Dated on its own day, so its bill number belongs to the right financial year.
+            bill_id = save_bill(db, shop_id,
+                                [{"product_id": ids[c], "quantity": q} for c, q in items],
+                                customer, order_date=when.strftime("%Y-%m-%d"), **extras)
             db.execute("UPDATE bills SET created_at = ? WHERE id = ?",
                        (when.isoformat(timespec="seconds"), bill_id))
             db.commit()

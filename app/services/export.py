@@ -5,19 +5,22 @@ from openpyxl import Workbook
 from openpyxl.styles import Font
 from openpyxl.utils import get_column_letter
 
-from .billing import PAYMENT_MODES
 
 MONEY = '#,##0.00'
 
 
-def bills_workbook(db, bills):
-    """Two sheets: one row per bill, and one row per item sold. Amounts are in rupees."""
+def bills_workbook(db, bills, methods):
+    """Two sheets: one row per bill, and one row per item sold. Amounts are in rupees.
+
+    `methods` is the shop's payment methods; each gets a column, and anything else is added up
+    in an "Other payment" column.
+    """
     ids = [b["id"] for b in bills]
     marks = ",".join("?" * len(ids))
     paid, lines = {}, {}
     if ids:
         for p in db.execute(f"SELECT bill_id, mode, amount FROM payments WHERE bill_id IN ({marks})", ids):
-            mode = p["mode"] if p["mode"] in PAYMENT_MODES else "Other"
+            mode = p["mode"] if p["mode"] in methods else "Other"
             paid.setdefault(p["bill_id"], {})
             paid[p["bill_id"]][mode] = paid[p["bill_id"]].get(mode, 0) + p["amount"]
         for l in db.execute(f"SELECT * FROM bill_lines WHERE bill_id IN ({marks}) ORDER BY id", ids):
@@ -30,9 +33,8 @@ def bills_workbook(db, bills):
     sheet.append(["Bill no", "Date", "Customer", "Phone", "Location", "State", "Customer type",
                   "Order came through", "Status", "Items total", "Whole-bill discount %",
                   "Whole-bill discount", "Shipping & handling", "Round off", "Total",
-                  "UPI", "Cash", "Net-banking", "Other payment", "Due", "Offers applied",
-                  "Replaces", "Replaced by"])
-    money_columns = {10, 12, 13, 14, 15, 16, 17, 18, 19, 20}
+                  *methods, "Other payment", "Due", "Offers applied", "Replaces", "Replaced by"])
+    money_columns = {10, 12, 13, 14, 15} | set(range(16, 16 + len(methods) + 2))
     for b in bills:
         items_total = sum(l["line_amount"] for l in lines.get(b["id"], []))
         whole_off = items_total - (b["total"] - b["shipping"] - b["round_off"])
@@ -42,8 +44,7 @@ def bills_workbook(db, bills):
             b["customer_location"], b["place_of_sale"], b["customer_type"], b["order_source"],
             b["status"], items_total / 100, b["whole_discount_pct"], whole_off / 100,
             b["shipping"] / 100, b["round_off"] / 100, b["total"] / 100,
-            by_mode.get("UPI", 0) / 100, by_mode.get("Cash", 0) / 100,
-            by_mode.get("Net-banking", 0) / 100, by_mode.get("Other", 0) / 100,
+            *[by_mode.get(m, 0) / 100 for m in methods], by_mode.get("Other", 0) / 100,
             (b["due_amount"] if b["status"] == "Saved" else 0) / 100, b["offers_applied"],
             labels.get(b["replaces"], ""), labels.get(b["replaced_by"], "")])
 

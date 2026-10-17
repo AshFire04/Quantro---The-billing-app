@@ -75,6 +75,18 @@ CREATE TABLE IF NOT EXISTS customers (
     customer_type TEXT NOT NULL DEFAULT 'Retail'
 );
 CREATE INDEX IF NOT EXISTS customers_phone ON customers (shop_id, phone_key);
+CREATE TABLE IF NOT EXISTS order_sources (   -- the shop's "Order came through" choices
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    shop_id INTEGER NOT NULL REFERENCES shops(id),
+    name TEXT NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS payment_methods (  -- the shop's payment method choices
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    shop_id INTEGER NOT NULL REFERENCES shops(id),
+    name TEXT NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0
+);
 CREATE TABLE IF NOT EXISTS offers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     shop_id INTEGER NOT NULL REFERENCES shops(id),
@@ -131,7 +143,23 @@ def close_db(e=None):
 
 def init_db():
     db = get_db()
+    had_lists = db.execute("SELECT 1 FROM sqlite_master WHERE name = 'payment_methods'").fetchone()
     db.executescript(SCHEMA)
+    if not had_lists:
+        # Shops that already exist keep exactly what they had: the old fixed choices, plus
+        # anything their bills used, so no old bill is left without its choice.
+        for shop in db.execute("SELECT id FROM shops").fetchall():
+            for table, old_defaults, query in (
+                    ("order_sources", ["Store (walk-in)", "Stall", "Website"],
+                     "SELECT DISTINCT order_source FROM bills WHERE shop_id = ?"),
+                    ("payment_methods", ["UPI", "Cash", "Net-banking"],
+                     "SELECT DISTINCT p.mode FROM payments p JOIN bills b ON b.id = p.bill_id "
+                     "WHERE b.shop_id = ?")):
+                used = sorted(r[0] for r in db.execute(query, (shop["id"],))
+                              if r[0] and not r[0].startswith("Other") and r[0] not in old_defaults)
+                for position, name in enumerate(old_defaults + used):
+                    db.execute(f"INSERT INTO {table} (shop_id, name, position) VALUES (?, ?, ?)",
+                               (shop["id"], name, position))
     # Databases made before a column existed get it added here.
     columns = [row["name"] for row in db.execute("PRAGMA table_info(bills)")]
     added = {"customer_phone": "TEXT", "order_source": "TEXT", "customer_location": "TEXT",

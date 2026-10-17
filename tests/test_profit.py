@@ -17,7 +17,7 @@ def product(client, name, price, cost="", supplier="", stock="50", category=""):
 
 
 def bill(client, items, **extra):
-    body = {"items": items, "customer": "Asha", "order_source": "Stall",
+    body = {"items": items, "customer": "Asha", "order_source": "Instagram",
             "payments": [{"mode": "Cash"}], **extra}
     res = client.post("/billing/save", json=body)
     assert res.status_code == 200, res.get_json()

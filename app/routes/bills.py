@@ -5,8 +5,8 @@ from flask import (Blueprint, Response, abort, flash, g, redirect, render_templa
 
 from ..auth import login_required
 from ..db import get_db
-from ..services.billing import (BillError, ORDER_SOURCES, PAYMENT_MODES,
-                                CUSTOMER_TYPES, cancel_bill, receive_due,
+from ..services import choices
+from ..services.billing import (BillError, CUSTOMER_TYPES, cancel_bill, receive_due,
                                 update_bill_customer)
 from ..services.states import PLACES
 from ..services.export import bills_workbook
@@ -29,12 +29,19 @@ def filtered_bills():
         sql += (" AND (bill_label = ? OR CAST(bill_seq AS TEXT) = ? "
                 "OR customer_name LIKE ? OR customer_phone LIKE ?)")
         params += [number, number, f"%{q}%", f"%{q}%"]
-    if f["source"] in ORDER_SOURCES:
-        sql += " AND order_source LIKE ?"          # 'Other' matches 'Other: Phone call' too
-        params.append(f["source"] + "%")
-    if f["mode"] in PAYMENT_MODES:
-        sql += " AND EXISTS (SELECT 1 FROM payments WHERE bill_id = bills.id AND mode LIKE ?)"
-        params.append(f["mode"] + "%")
+    db = get_db()
+    if f["source"] in choices.filter_options(db, g.shop["id"], "source"):
+        if f["source"] == "Other":                 # matches 'Other: Phone call' and so on
+            sql += " AND order_source LIKE 'Other%'"
+        else:
+            sql += " AND order_source = ?"
+            params.append(f["source"])
+    if f["mode"] in choices.filter_options(db, g.shop["id"], "method"):
+        if f["mode"] == "Other":
+            sql += " AND EXISTS (SELECT 1 FROM payments WHERE bill_id = bills.id AND mode LIKE 'Other%')"
+        else:
+            sql += " AND EXISTS (SELECT 1 FROM payments WHERE bill_id = bills.id AND mode = ?)"
+            params.append(f["mode"])
     if f["customer"].isdigit():
         sql += " AND customer_id = ?"
         params.append(int(f["customer"]))
@@ -54,20 +61,25 @@ def filtered_bills():
 @login_required
 def index():
     bills, q, f = filtered_bills()
-    # What each bill was paid with, added up per way of paying: {bill id: {"UPI": paise, ...}}
+    # What each bill was paid with, added up per way of paying: {bill id: {"UPI": paise, ...}}.
+    # The columns are the shop's own payment methods; anything else is added up as "Other".
+    methods = choices.names(get_db(), g.shop["id"], "method")
     paid = {}
     if bills:
         marks = ",".join("?" * len(bills))
         for p in get_db().execute(f"SELECT bill_id, mode, amount FROM payments "
                                   f"WHERE bill_id IN ({marks})", [b["id"] for b in bills]):
             by_mode = paid.setdefault(p["bill_id"], {})
-            by_mode[p["mode"]] = by_mode.get(p["mode"], 0) + p["amount"]
+            mode = p["mode"] if p["mode"] in methods else "Other"
+            by_mode[mode] = by_mode.get(mode, 0) + p["amount"]
+    columns = methods + (["Other"] if any("Other" in m for m in paid.values()) else [])
     has_any = get_db().execute("SELECT 1 FROM bills WHERE shop_id = ?",
                                (g.shop["id"],)).fetchone() is not None
     filtering = bool(q or any(f.values()))
     return render_template("bills.html", bills=bills, q=q, f=f, has_any=has_any,
-                           filtering=filtering, order_sources=ORDER_SOURCES, paid=paid,
-                           payment_modes=PAYMENT_MODES)
+                           filtering=filtering, paid=paid, columns=columns,
+                           order_sources=choices.filter_options(get_db(), g.shop["id"], "source"),
+                           payment_modes=choices.filter_options(get_db(), g.shop["id"], "method"))
 
 
 @bp.route("/bills/export.xlsx")
@@ -76,7 +88,8 @@ def export():
     """Excel file of the bills the page is showing (everything, when nothing is filtered)."""
     bills, _, _ = filtered_bills()
     name = f"quantro-bills-{datetime.now():%Y-%m-%d}.xlsx"
-    return Response(bills_workbook(get_db(), bills),
+    methods = choices.names(get_db(), g.shop["id"], "method")
+    return Response(bills_workbook(get_db(), bills, methods),
                     mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
@@ -101,7 +114,7 @@ def view(bill_id):
     return render_template("bill_view.html", bill=bill, lines=lines, payments=payments, qr_codes=qr_codes,
                            replaced_by=other(bill["replaced_by"]), replaces=other(bill["replaces"]),
                            just_saved=request.args.get("saved") == "1",
-                           payment_modes=PAYMENT_MODES)
+                           payment_modes=choices.with_other(db, g.shop["id"], "method"))
 
 
 def own_bill(bill_id):

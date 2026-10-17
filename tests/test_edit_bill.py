@@ -124,7 +124,7 @@ def test_the_old_payment_and_due_stay_with_the_cancelled_bill(shop):
 
 def make(client, **extra):
     body = {"items": [{"product_id": 1, "quantity": 4, "discount": "10"}], "customer": "Asha",
-            "phone": "98765 43210", "location": "Indiranagar", "order_source": "Website",
+            "phone": "98765 43210", "location": "Indiranagar", "order_source": "WhatsApp",
             "payments": [{"mode": "UPI"}], "whole_discount": "5", "shipping": "80"}
     body.update(extra)
     res = client.post("/billing/save", json=body)
@@ -140,7 +140,7 @@ def test_edit_page_opens_a_copy_with_everything_filled_in(client):
     assert f"Editing bill {num(1)}" in page and f"Save changes (replaces {num(1)})" in page
     assert '"stock": 10' in page                             # the 4 held by bill #1 count as available
     for expected in ('"customer": "Asha"', '"phone": "98765 43210"', '"location": "Indiranagar"',
-                     '"source": "Website"', '"whole_discount": "5"', '"shipping": "80.00"',
+                     '"source": "WhatsApp"', '"whole_discount": "5"', '"shipping": "80.00"',
                      '"discount": "10"', '"quantity": 4', '"replaces": 1'):
         assert expected in page
     # Just opening the copy changes nothing.
@@ -183,7 +183,7 @@ def test_cannot_edit_or_replace_another_shops_bill(client):
     add(client, name="Tray", price="450", stock="10")
     assert client.get("/billing/edit/1").status_code == 302         # sent back to Past bills
     res = client.post("/billing/save", json={
-        "items": [{"product_id": 1, "quantity": 1}], "customer": "X", "order_source": "Stall",
+        "items": [{"product_id": 1, "quantity": 1}], "customer": "X", "order_source": "Instagram",
         "payments": CASH, "replaces": 1})
     assert res.status_code == 400 and "wasn't found" in res.get_json()["error"]
     client.get("/logout")
@@ -195,7 +195,7 @@ def test_bad_replaces_value_is_refused(client):
     create(client)
     add(client, name="Tray", price="450", stock="10")
     res = client.post("/billing/save", json={
-        "items": [{"product_id": 1, "quantity": 1}], "customer": "X", "order_source": "Stall",
+        "items": [{"product_id": 1, "quantity": 1}], "customer": "X", "order_source": "Instagram",
         "payments": CASH, "replaces": "abc"})
     assert res.status_code == 400
 

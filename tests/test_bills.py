@@ -7,7 +7,7 @@ CASH = [{"mode": "Cash"}]
 def make_bill(client, customer, qty=1, phone=""):
     res = client.post("/billing/save", json={
         "items": [{"product_id": 1, "quantity": qty}], "customer": customer, "phone": phone,
-        "order_source": "Store (walk-in)", "payments": CASH})
+        "order_source": "Walk-in", "payments": CASH})
     assert res.status_code == 200
     return res.get_json()["url"]
 
@@ -71,22 +71,22 @@ def test_filters(client):
             body.update(due_amount=due)
         return client.post("/billing/save", json=body)
 
-    bill("Asha", "Website", "UPI")
-    bill("Ravi", "Stall", "Cash", due="100")
-    bill("Meena", "Store (walk-in)", "Net-banking")
+    bill("Asha", "WhatsApp", "UPI")
+    bill("Ravi", "Instagram", "Cash", due="100")
+    bill("Meena", "Walk-in", "Card")
 
     def names(query):
         page = client.get("/bills?" + query).data.decode()
         return [n for n in ("Asha", "Ravi", "Meena") if n in page]
 
-    assert names("source=Website") == ["Asha"]
-    assert names("source=Stall") == ["Ravi"]
+    assert names("source=WhatsApp") == ["Asha"]
+    assert names("source=Instagram") == ["Ravi"]
     assert names("mode=Cash") == ["Ravi"]
-    assert names("mode=Net-banking") == ["Meena"]
+    assert names("mode=Card") == ["Meena"]
     assert names("due=due") == ["Ravi"]
     assert "₹100.00" in client.get("/bills?due=due").data.decode()
-    assert names("source=Website&mode=UPI") == ["Asha"]            # filters combine
-    assert names("source=Website&mode=Cash") == []
+    assert names("source=WhatsApp&mode=UPI") == ["Asha"]            # filters combine
+    assert names("source=WhatsApp&mode=Cash") == []
     assert sorted(names("date_from=2000-01-01&date_to=2999-12-31")) == ["Asha", "Meena", "Ravi"]
     assert names("date_from=2999-01-01") == []
     assert b"No bills match these filters" in client.get("/bills?date_from=2999-01-01").data
@@ -96,7 +96,7 @@ def test_marking_a_due_payment_received(client):
     create(client)
     add(client, name="Tray", price="450", stock="20")
     client.post("/billing/save", json={
-        "items": [{"product_id": 1, "quantity": 2}], "customer": "Ravi", "order_source": "Stall",
+        "items": [{"product_id": 1, "quantity": 2}], "customer": "Ravi", "order_source": "Instagram",
         "payments": [{"mode": "Cash"}], "due_amount": "400"})
     page = client.get("/bills/1").data.decode()
     assert "Payment due: ₹400.00" in page and "Mark payment received" in page
@@ -119,7 +119,7 @@ def test_cannot_clear_another_shops_due(client):
     create(client)
     add(client, name="Tray", price="450", stock="20")
     client.post("/billing/save", json={
-        "items": [{"product_id": 1, "quantity": 1}], "customer": "Ravi", "order_source": "Stall",
+        "items": [{"product_id": 1, "quantity": 1}], "customer": "Ravi", "order_source": "Instagram",
         "payments": [{"mode": "Cash"}], "due_amount": "100"})
     client.get("/logout")
     create(client, login="other@example.com", shop="Other shop")
@@ -134,7 +134,7 @@ def test_dates_show_as_day_short_month_year_without_time(client):
     create(client)
     add(client, name="Tray", price="450", stock="20")
     client.post("/billing/save", json={
-        "items": [{"product_id": 1, "quantity": 1}], "customer": "Ravi", "order_source": "Stall",
+        "items": [{"product_id": 1, "quantity": 1}], "customer": "Ravi", "order_source": "Instagram",
         "payments": [{"mode": "Cash"}], "due_amount": "100"})
     today = datetime.now().strftime("%d %b %Y")
     for url in ("/bills", "/bills/1"):
@@ -151,7 +151,7 @@ def test_past_bills_shows_the_place_of_sale(client):
     for customer, place in (("Asha", "Karnataka"), ("Ravi", "Singapore")):
         client.post("/billing/save", json={
             "items": [{"product_id": 1, "quantity": 1}], "customer": customer,
-            "place_of_sale": place, "order_source": "Website", "payments": [{"mode": "UPI"}]})
+            "place_of_sale": place, "order_source": "WhatsApp", "payments": [{"mode": "UPI"}]})
     page = client.get("/bills").data.decode()
     assert "Place of sale" in page and "Karnataka" in page and "Singapore" in page
 
@@ -163,7 +163,7 @@ def test_status_shows_paid_payment_due_or_cancelled(client):
 
     def bill(customer, **extra):
         body = {"items": [{"product_id": 1, "quantity": 1}], "customer": customer,
-                "order_source": "Stall", "payments": [{"mode": "Cash"}]}
+                "order_source": "Instagram", "payments": [{"mode": "Cash"}]}
         body.update(extra)
         assert client.post("/billing/save", json=body).status_code == 200
 
@@ -192,16 +192,16 @@ def test_past_bills_shows_upi_cash_netbanking_and_due_for_every_bill(client):
     create(client)
     add(client, name="Tray", price="450", stock="20")
     client.post("/billing/save", json={            # bill 1: ₹900, ₹300 due, ₹400 cash + ₹200 UPI
-        "items": [{"product_id": 1, "quantity": 2}], "customer": "Asha", "order_source": "Stall",
+        "items": [{"product_id": 1, "quantity": 2}], "customer": "Asha", "order_source": "Instagram",
         "due_amount": "300",
         "payments": [{"mode": "Cash", "amount": "400"}, {"mode": "UPI", "amount": "200"}]})
     make_bill(client, "Ravi")                       # bill 2: ₹450 cash, nothing due
     page = client.get("/bills").data.decode()
-    assert ">Due</th>" in page and ">UPI</th>" in page and ">Net-banking</th>" in page
+    assert ">Due</th>" in page and ">UPI</th>" in page and ">Card</th>" in page
     rows = {}
     for row in page.split("<tr>")[2:]:
         cells = [c.split("</td>")[0].split(">")[-1].strip() for c in row.split("<td")[1:]]
         rows[cells[2]] = cells
     asha, ravi = rows["Asha"], rows["Ravi"]
-    assert asha[-4:] == ["₹200.00", "₹400.00", "-", "₹300.00"]      # a dash where it is nothing
-    assert ravi[-4:] == ["-", "₹450.00", "-", "-"]
+    assert asha[-5:] == ["₹400.00", "₹200.00", "-", "-", "₹300.00"]   # a dash where it is nothing
+    assert ravi[-5:] == ["₹450.00", "-", "-", "-", "-"]
