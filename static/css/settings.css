@@ -115,3 +115,9 @@
   .sd-btn, .sd-btn-danger { width: 100%; }
   .sd-qrs li form .sd-btn-danger { width: auto; }
 }
+
+.sd-logo-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 20px; }
+.sd-logo-box { width: 150px; height: 150px; box-sizing: border-box; border: 1px solid #E5E0D4; border-radius: 14px; background: #FFFFFF; padding: 14px; display: flex; align-items: center; justify-content: center; color: #5E6770; font-size: 14px; text-align: center; }
+.sd-logo-box img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.sd-logo-form { flex: 1 1 360px; }
+.sd-paper-logo { max-width: 120px; max-height: 70px; object-fit: contain; margin-bottom: 6px; }

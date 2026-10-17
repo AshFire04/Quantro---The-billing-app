@@ -344,3 +344,64 @@ def test_editing_a_bill_keeps_its_offers_ticked_if_they_are_still_on(client):
     assert '"offer_ids": []' in client.get("/billing/edit/1").data.decode()
 
 
+
+
+# ---- shop logo ----
+
+def upload_logo(client, data=PNG, filename="logo.png"):
+    import io
+    return client.post("/settings/logo", data={"logo": (io.BytesIO(data), filename)},
+                       content_type="multipart/form-data", follow_redirects=True)
+
+
+def logo_name(app):
+    import sqlite3
+    return sqlite3.connect(app.config["DATABASE"]).execute("SELECT logo FROM shops").fetchone()[0]
+
+
+def test_logo_can_be_added_shown_replaced_and_removed(client, app):
+    create(client)
+    assert "No logo yet" in seen(client.get("/settings"))
+    page = seen(upload_logo(client))
+    assert "Logo saved" in page and "Your shop logo" in page and "No logo yet" not in page
+    first = logo_name(app)
+    assert first.endswith(".png") and os.path.exists(os.path.join(app.config["UPLOAD_FOLDER"], first))
+    assert client.get(f"/uploads/{first}").data == PNG
+    upload_logo(client, data=JPG, filename="new.jpg")                     # replace
+    second = logo_name(app)
+    assert second != first and second.endswith(".jpg")
+    assert not os.path.exists(os.path.join(app.config["UPLOAD_FOLDER"], first))   # the old file is gone
+    assert "Logo removed" in seen(client.post("/settings/logo/remove", follow_redirects=True))
+    assert logo_name(app) == "" and not os.listdir(app.config["UPLOAD_FOLDER"])
+
+
+def test_logo_shows_on_the_bill_and_in_the_preview(client, app):
+    create(client)
+    add(client, name="Tray", price="450", stock="5")
+    client.post("/billing/save", json={"items": [{"product_id": 1, "quantity": 1}], "customer": "A",
+                                       "order_source": "Walk-in", "payments": CASH})
+    assert "paper-logo" not in client.get("/bills/1").data.decode()
+    upload_logo(client)
+    name = logo_name(app)
+    assert f"/uploads/{name}" in client.get("/bills/1").data.decode()
+    assert "sd-paper-logo" in client.get("/settings").data.decode()
+
+
+def test_bad_logo_files_are_refused(client, app):
+    create(client)
+    assert "isn't a PNG or JPG" in seen(upload_logo(client, data=b"<svg onload=alert(1)>", filename="x.png"))
+    assert "too big" in seen(upload_logo(client, data=PNG + b"\x00" * (1024 * 1024)))
+    assert "choose an image" in seen(client.post("/settings/logo", data={}, follow_redirects=True))
+    assert logo_name(app) == ""
+
+
+def test_logo_is_private_and_needs_sign_in(client, app):
+    assert client.post("/settings/logo", data={}).status_code == 302
+    create(client)
+    upload_logo(client)
+    name = logo_name(app)
+    client.get("/logout")
+    assert client.get(f"/uploads/{name}").status_code == 302              # signed out
+    create(client, login="other@example.com", shop="Shop B")
+    assert client.get(f"/uploads/{name}").status_code == 404              # someone else's shop
+    assert "No logo yet" in seen(client.get("/settings"))

@@ -104,6 +104,7 @@
 {% set whole_off = subtotal - (bill.total - bill.shipping - bill.round_off) %}
 <section class="paper" aria-label="Printable bill">
   <header class="paper-head">
+    {% if g.shop['logo'] %}<img class="paper-logo" src="{{ url_for('settings.uploaded_file', filename=g.shop['logo']) }}" alt="{{ g.shop['name'] }} logo">{% endif %}
     <div class="paper-shop">
       <h2>{{ g.shop['name'] }}</h2>
       {% if g.shop['website'] %}<div>{{ g.shop['website'] }}</div>{% endif %}

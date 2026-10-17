@@ -11,7 +11,8 @@ CREATE TABLE IF NOT EXISTS shops (
     bank_details TEXT DEFAULT '',
     terms TEXT DEFAULT '',
     next_invoice_number INTEGER NOT NULL DEFAULT 1,
-    monthly_target INTEGER NOT NULL DEFAULT 0   -- paise; the sales goal for a month (0 = not set)
+    monthly_target INTEGER NOT NULL DEFAULT 0,  -- paise; the sales goal for a month (0 = not set)
+    logo TEXT NOT NULL DEFAULT ''               -- file name of the shop's logo in instance/uploads/
 );
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -217,6 +218,8 @@ def init_db():
     line_columns = [row["name"] for row in db.execute("PRAGMA table_info(bill_lines)")]
     if "cost" not in line_columns:
         db.execute("ALTER TABLE bill_lines ADD COLUMN cost INTEGER NOT NULL DEFAULT 0")
+    if "logo" not in shop_columns:
+        db.execute("ALTER TABLE shops ADD COLUMN logo TEXT NOT NULL DEFAULT ''")
     payment_columns = [row["name"] for row in db.execute("PRAGMA table_info(payments)")]
     if "paid_at" not in payment_columns:
         db.execute("ALTER TABLE payments ADD COLUMN paid_at TEXT NOT NULL DEFAULT ''")

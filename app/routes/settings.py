@@ -176,6 +176,67 @@ def delete_offer(offer_id):
     return redirect(url_for("settings.index"))
 
 
+# ---- Images: the QR codes and the shop logo ----
+
+def read_image(image):
+    """The bytes and file extension of an uploaded PNG or JPG. Returns (data, extension, error)."""
+    if image is None or image.filename == "":
+        return None, None, "Please choose an image to upload"
+    data = image.read(MAX_QR_BYTES + 1)
+    extension = next((ext for magic, ext in IMAGE_TYPES.items() if data.startswith(magic)), None)
+    if len(data) > MAX_QR_BYTES:
+        return None, None, "That image is too big. Please use one under 1 MB."
+    if extension is None:
+        return None, None, "That file isn't a PNG or JPG image"
+    return data, extension, None
+
+
+def save_image(data, extension):
+    """Writes the image under a random name (never the uploaded one) and returns that name."""
+    filename = secrets.token_hex(16) + extension
+    with open(os.path.join(upload_dir(), filename), "wb") as out:
+        out.write(data)
+    return filename
+
+
+def delete_image(filename):
+    try:
+        os.remove(os.path.join(upload_dir(), filename))
+    except OSError:
+        pass                                  # the record is gone; a leftover file is harmless
+
+
+@bp.route("/settings/logo", methods=("POST",))
+@login_required
+def add_logo():
+    data, extension, error = read_image(request.files.get("logo"))
+    if error:
+        flash(error)
+        return redirect(url_for("settings.index") + "#logo")
+    old = g.shop["logo"]
+    db = get_db()
+    filename = save_image(data, extension)
+    with db:
+        db.execute("UPDATE shops SET logo = ? WHERE id = ?", (filename, g.shop["id"]))
+    if old:
+        delete_image(old)
+    flash("Logo saved. It now prints at the top of your bills.", "ok")
+    return redirect(url_for("settings.index") + "#logo")
+
+
+@bp.route("/settings/logo/remove", methods=("POST",))
+@login_required
+def remove_logo():
+    old = g.shop["logo"]
+    db = get_db()
+    with db:
+        db.execute("UPDATE shops SET logo = '' WHERE id = ?", (g.shop["id"],))
+    if old:
+        delete_image(old)
+        flash("Logo removed", "ok")
+    return redirect(url_for("settings.index") + "#logo")
+
+
 # ---- QR code images ----
 
 def upload_dir():
@@ -198,19 +259,12 @@ def add_qr():
         flash("Keep the QR code label under 40 characters")
     elif count >= MAX_QR_CODES:
         flash(f"You can keep up to {MAX_QR_CODES} QR codes. Remove one first.")
-    elif image is None or image.filename == "":
-        flash("Please choose an image to upload")
     else:
-        data = image.read(MAX_QR_BYTES + 1)
-        extension = next((ext for magic, ext in IMAGE_TYPES.items() if data.startswith(magic)), None)
-        if len(data) > MAX_QR_BYTES:
-            flash("That image is too big. Please use one under 1 MB.")
-        elif extension is None:
-            flash("That file isn't a PNG or JPG image")
+        data, extension, error = read_image(image)
+        if error:
+            flash(error)
         else:
-            filename = secrets.token_hex(16) + extension
-            with open(os.path.join(upload_dir(), filename), "wb") as out:
-                out.write(data)
+            filename = save_image(data, extension)
             with db:
                 db.execute("INSERT INTO shop_qr_codes (shop_id, label, filename, position) "
                            "VALUES (?, ?, ?, ?)", (g.shop["id"], label, filename, count))
@@ -228,19 +282,18 @@ def delete_qr(qr_id):
         abort(404)
     with db:
         db.execute("DELETE FROM shop_qr_codes WHERE id = ?", (qr_id,))
-    try:
-        os.remove(os.path.join(upload_dir(), qr["filename"]))
-    except OSError:
-        pass                                  # the record is gone; a leftover file is harmless
+    delete_image(qr["filename"])
     return redirect(url_for("settings.index"))
 
 
 @bp.route("/uploads/<filename>")
 @login_required
 def uploaded_file(filename):
-    """Serves a QR image, but only to the shop that owns it."""
-    owned = get_db().execute("SELECT 1 FROM shop_qr_codes WHERE filename = ? AND shop_id = ?",
-                             (filename, g.shop["id"])).fetchone()
+    """Serves a QR image or logo, but only to the shop that owns it."""
+    owned = get_db().execute(
+        "SELECT 1 FROM shop_qr_codes WHERE filename = ? AND shop_id = ? "
+        "UNION SELECT 1 FROM shops WHERE logo = ? AND id = ?",
+        (filename, g.shop["id"], filename, g.shop["id"])).fetchone()
     if owned is None:
         abort(404)
     return send_from_directory(upload_dir(), filename)

@@ -4,6 +4,7 @@
 {% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/settings.css') }}">{% endblock %}
 {% macro icon(name) %}
   {%- if name == 'shop' -%}<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l1.5-5h15L21 9"></path><path d="M4 9v11h16V9"></path><path d="M9 20v-6h6v6"></path></svg>
+  {%- elif name == 'logo' -%}<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><circle cx="9" cy="10" r="1.8"></circle><path d="M21 16l-5-5-8 9"></path></svg>
   {%- elif name == 'target' -%}<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="5"></circle><circle cx="12" cy="12" r="1.5"></circle></svg>
   {%- elif name == 'qr' -%}<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><path d="M14 14h3v3h-3zM17 20h4M20 14v3"></path></svg>
   {%- elif name == 'offers' -%}<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12V4h8l10 10-8 8z"></path><circle cx="7.5" cy="8.5" r="1.2"></circle></svg>
@@ -46,6 +47,7 @@
   <aside class="sd-nav-wrap">
     <nav aria-label="Sections" class="sd-nav">
       <a href="#profile" class="active">{{ icon('shop') }}Shop profile</a>
+      <a href="#logo">{{ icon('logo') }}Logo</a>
       <a href="#target">{{ icon('target') }}Monthly target</a>
       <a href="#qr">{{ icon('qr') }}QR codes</a>
       <a href="#offers">{{ icon('offers') }}Offers</a>
@@ -90,6 +92,28 @@
           <button type="submit" class="sd-btn">Save shop details</button>
         </div>
       </form>
+    </section>
+
+    <section id="logo" class="sd-card" aria-labelledby="logo-h">
+      {{ section_head('logo', 'logo', 'Logo', 'PNG or JPG, under 1 MB. It prints at the top of your bill, next to your shop name.') }}
+      <div class="sd-logo-row">
+        <div class="sd-logo-box">
+          {% if g.shop['logo'] %}<img src="{{ url_for('settings.uploaded_file', filename=g.shop['logo']) }}" alt="Your shop logo">
+          {% else %}<span>No logo yet</span>{% endif %}
+        </div>
+        <form method="post" action="{{ url_for('settings.add_logo') }}" enctype="multipart/form-data" class="sd-row sd-logo-form">
+          <label class="sd-field" style="flex:1 1 260px">
+            <span>{{ 'Replace the logo' if g.shop['logo'] else 'Choose a logo' }}</span>
+            <input type="file" name="logo" accept="image/png,image/jpeg" class="sd-file" required>
+          </label>
+          <button type="submit" class="sd-btn">{{ 'Replace logo' if g.shop['logo'] else 'Add logo' }}</button>
+        </form>
+        {% if g.shop['logo'] %}
+        <form method="post" action="{{ url_for('settings.remove_logo') }}" onsubmit="return confirm('Remove your logo?')">
+          <button type="submit" class="sd-btn-danger">Remove logo</button>
+        </form>
+        {% endif %}
+      </div>
     </section>
 
     <section id="target" class="sd-card" aria-labelledby="target-h">
@@ -243,6 +267,7 @@
     <h2>Bill preview</h2>
     <div class="sd-paper">
       <div class="sd-paper-head">
+        {% if g.shop['logo'] %}<img class="sd-paper-logo" src="{{ url_for('settings.uploaded_file', filename=g.shop['logo']) }}" alt="">{% endif %}
         <span class="sd-paper-name" id="pv-name">{{ g.shop['name'] }}</span>
         <span id="pv-phone">{{ g.shop['phone'] }}</span>
         <span id="pv-website">{{ g.shop['website'] }}</span>
