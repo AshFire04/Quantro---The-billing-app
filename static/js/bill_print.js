@@ -19,8 +19,9 @@
     body.className = "sh-body";
     const table = document.createElement("table");
     table.className = "paper-items";
-    table.innerHTML = '<thead><tr><th class="sr">Sr.</th><th class="left">Description of Goods</th>' +
-      '<th class="qty">Qty</th><th class="rate">Rate</th><th class="amt">Amount</th></tr></thead><tbody></tbody>';
+    table.innerHTML = '<colgroup><col class="c-sr"><col><col class="c-qty"><col class="c-rate"><col class="c-amt"></colgroup>' +
+      '<thead><tr><th class="c-sr">Sr.</th><th class="left">Description of Goods</th>' +
+      '<th>Qty</th><th>Rate</th><th>Amount</th></tr></thead><tbody></tbody>';
     body.append(table);
     sheet.append(body);
     sheet.append(src.querySelector(".sh-foot").cloneNode(true));

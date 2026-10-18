@@ -96,3 +96,55 @@ def test_the_upgrade_adds_the_gst_columns_once_and_backs_up_first(client, app):
     assert [f for f in os.listdir(folder) if "before-gst" in f]
     db = sqlite3.connect(app.config["DATABASE"])
     assert db.execute("SELECT gst_rate FROM bill_lines").fetchall() == [(0.0,), (0.0,)]   # old bills: none saved
+
+
+def test_a_thousand_rupees_at_18_percent_prints_152_54_and_the_totals_lines(client):
+    create(client)
+    add(client, name="GST test", price="1000", stock="5", gst_rate="18")
+    assert "GST %</th>" in html.unescape(client.get("/inventory/").data.decode())
+    assert 'name="gst_rate"' in client.get("/inventory/new").data.decode()
+    client.post("/billing/save", json={"items": [{"product_id": 1, "quantity": 1}], "customer": "Test",
+                                       "order_source": "Walk-in", "payments": [{"mode": "Cash"}]})
+    page = html.unescape(client.get("/bills/1").data.decode())
+    assert "incl. GST 18%: Rs 152.54" in page
+    assert "GST included (subtotal)" in page and "Taxable value" in page
+    assert "₹152.54" in page and "₹847.46" in page
+
+
+def test_the_billing_screen_knows_each_products_gst_and_has_a_gst_included_total(client):
+    create(client)
+    add(client, name="GST test", price="1000", stock="5", gst_rate="18")
+    page = html.unescape(client.get("/billing").data.decode())
+    assert '"gst_rate": 18.0' in page and 'id="gst-total"' in page and 'id="gst-label"' in page
+    js = open("static/js/billing.js", encoding="utf-8").read()
+    assert "GST ${+p.gst_rate}% included" in js and "gstIncluded(t.wholeOff)" in js
+
+
+def test_layout_rules_thin_lines_one_thick_border_footer_columns_and_no_oval_qty(client):
+    css = open("static/css/print.css", encoding="utf-8").read()
+    assert "border: 0.8mm solid #000" in css and css.count("0.8mm solid") == 1     # the one outer border
+    assert "0.3mm solid #000" in css and "1px" not in css
+    assert "grid-template-columns: 1fr 1fr" in css and "table-layout: fixed" in css
+    assert ".qty" not in css and "white-space: nowrap" in css
+    js = open("static/js/bill_print.js", encoding="utf-8").read()
+    assert 'class="qty"' not in js                                  # that class is the Billing screen's rounded box
+    make_bill(client)
+    client.post("/settings/details", data={"name": "Shop", "bank_details": "A/c 1", "terms": "1. a\n2. b"})
+    page = html.unescape(client.get("/bills/1").data.decode())
+    assert 'class="fbox"' in page and "<strong>Terms:</strong><br>1. a<br>2. b" in page
+    assert page.index("Bank Details:") < page.index("Terms:") < page.index("paper-thanks")
+    totals = page[page.index('class="paper-totals"'):page.index('class="sh-foot"')]
+    assert '<td colspan="4">' in totals and 'class="c-amt"' in totals
+
+
+def test_a_test_draft_can_be_deleted_without_leaving_a_trace(client, app):
+    create(client)
+    add(client, name="GST test", price="1000", stock="5", gst_rate="18")
+    client.post("/billing/save", json={"items": [{"product_id": 1, "quantity": 1}], "customer": "Test",
+                                       "order_source": "Walk-in", "payments": [{"mode": "Cash"}], "draft": True})
+    assert "incl. GST 18%: Rs 152.54" in html.unescape(client.get("/bills/1").data.decode())
+    client.post("/bills/1/delete-draft")
+    db = sqlite3.connect(app.config["DATABASE"])
+    assert db.execute("SELECT COUNT(*) FROM bills").fetchone()[0] == 0
+    assert db.execute("SELECT COUNT(*) FROM bill_lines").fetchone()[0] == 0
+    assert db.execute("SELECT stock FROM products").fetchone()[0] == 5

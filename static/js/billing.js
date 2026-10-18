@@ -148,6 +148,24 @@ function computeTotals() {
   return { subtotal, wholeOff: subtotal - afterWhole, shipping, roundOff: total - exact, total };
 }
 
+// How much of the total is GST (prices already include it). Same sums as the printed bill:
+// the whole-bill discount is shared over the lines in proportion, then GST = net x rate / (100 + rate).
+function gstIncluded(wholeOff) {
+  const ids = Object.keys(bill), amounts = ids.map(lineAmount);
+  const sum = amounts.reduce((a, b) => a + b, 0);
+  let given = 0, gst = 0;
+  ids.forEach((id, i) => {
+    let share = 0;
+    if (wholeOff > 0 && sum > 0) {
+      share = i === ids.length - 1 ? wholeOff - given : Math.floor((wholeOff * amounts[i] * 2 + sum) / (2 * sum));
+      given += share;
+    }
+    const net = amounts[i] - share, h = Math.round((byId[id].gst_rate || 0) * 100);
+    if (h > 0 && net > 0) gst += Math.floor((net * h * 2 + (10000 + h)) / (2 * (10000 + h)));
+  });
+  return gst;
+}
+
 function renderBill() {
   const ids = Object.keys(bill).map(Number);
   $("lines").innerHTML = "";
@@ -158,7 +176,7 @@ function renderBill() {
     const p = byId[id], qty = bill[id];
     const row = document.createElement("div");
     row.className = "line";
-    row.innerHTML = `<div class="line-name"><span class="n"></span><span class="c"></span></div>
+    row.innerHTML = `<div class="line-name"><span class="n"></span><span class="c"></span><span class="g muted"></span></div>
       <div class="qty">
         <button type="button" class="minus" aria-label="One less">−</button>
         <span class="mono qty-num"></span>
@@ -170,6 +188,7 @@ function renderBill() {
       </label>`;
     row.querySelector(".n").textContent = p.name;
     row.querySelector(".c").textContent = `${p.code ? p.code + " · " : ""}${rupees(p.price)} each`;
+    row.querySelector(".g").textContent = p.gst_rate > 0 ? ` · GST ${+p.gst_rate}% included` : "";
     row.querySelector(".qty-num").textContent = qty;
     row.querySelector(".minus").onclick = () => changeQty(id, -1);
     const plus = row.querySelector(".plus");
@@ -209,6 +228,9 @@ function refreshTotals() {
   $("round-off").textContent = (t.roundOff > 0 ? "+" : t.roundOff < 0 ? "−" : "") +
     rupees(Math.abs(t.roundOff));
   $("total").textContent = rupees(t.total);
+  const gst = gstIncluded(t.wholeOff);
+  $("gst-total").textContent = rupees(gst);
+  $("gst-total").hidden = $("gst-label").hidden = gst === 0;
   renderPayNow();                       // the total changed, so what is paid now changes too
 }
 $("whole-discount").oninput = refreshTotals;
