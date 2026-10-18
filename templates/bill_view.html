@@ -113,63 +113,80 @@
 
 {% set subtotal = lines | sum(attribute="line_amount") %}
 {% set whole_off = subtotal - (bill.total - bill.shipping - bill.round_off) %}
-<section class="paper" aria-label="Printable bill">
-  <header class="paper-head">
-    {% if g.shop['logo'] %}<img class="paper-logo" src="{{ url_for('settings.uploaded_file', filename=g.shop['logo']) }}" alt="{{ g.shop['name'] }} logo">{% endif %}
-    <div class="paper-shop">
-      <h2>{{ g.shop['name'] }}</h2>
-      {% if g.shop['website'] %}<div>{{ g.shop['website'] }}</div>{% endif %}
-      {% if g.shop['email'] %}<div>{{ g.shop['email'] }}</div>{% endif %}
-      {% if g.shop['phone'] %}<div>Ph: {{ g.shop['phone'] }}</div>{% endif %}
+<section class="paper" aria-label="Printable bill" data-draft="{{ 1 if bill.status == 'Draft' else 0 }}">
+  <div id="paper-src" style="display:none">
+    <div class="sh-head">
+      <div class="sh-top">
+        <div class="sh-logo">{% if g.shop['logo'] %}<img class="paper-logo" src="{{ url_for('settings.uploaded_file', filename=g.shop['logo']) }}" alt="{{ g.shop['name'] }} logo">{% endif %}</div>
+        <div class="sh-shop">
+          <h2>{{ g.shop['name'] }}</h2>
+          {% if g.shop['website'] %}<div>{{ g.shop['website'] }}</div>{% endif %}
+          {% if g.shop['email'] %}<div>{{ g.shop['email'] }}</div>{% endif %}
+          {% if g.shop['phone'] %}<div>Ph: {{ g.shop['phone'] }}</div>{% endif %}
+          {% if g.shop['gstin'] %}<div>GSTIN: {{ g.shop['gstin'] }}</div>{% endif %}
+        </div>
+        <div class="sh-memo">Cash / Credit Memo</div>
+      </div>
+      {% if bill.status == 'Draft' %}<strong class="paper-draft">DRAFT</strong>{% endif %}
+      <div class="sh-meta">
+        <div>
+          <div>Customer: <strong>{{ bill.customer_name }}</strong>{% if bill.customer_phone %} ({{ bill.customer_phone }}){% endif %}</div>
+          {% if bill.customer_location %}<div>{{ bill.customer_location }}</div>{% endif %}
+        </div>
+        <div class="sh-no">
+          <div>Bill No: <strong>{{ bill.bill_label }}</strong>{% if bill.status == 'Cancelled' %} (CANCELLED){% elif bill.status == 'Draft' %} (DRAFT){% endif %}</div>
+          <div>Date: {{ bill.created_at | fdate }}</div>
+          <div class="sh-page">Page <span class="px"></span> of <span class="py"></span></div>
+        </div>
+      </div>
     </div>
-    <div class="paper-memo">Cash / Credit Memo</div>
-  </header>
-  {% if bill.status == 'Draft' %}<strong class="paper-draft">DRAFT</strong>{% endif %}
-  <div class="paper-meta">
-    <div>
-      <div>Customer: <strong>{{ bill.customer_name }}</strong>{% if bill.customer_phone %} ({{ bill.customer_phone }}){% endif %}</div>
-      {% if bill.customer_location %}<div>{{ bill.customer_location }}</div>{% endif %}
-    </div>
-    <div class="paper-no">
-      <div>Bill No: <strong>{{ bill.bill_label }}</strong>{% if bill.status == 'Cancelled' %} (CANCELLED){% elif bill.status == 'Draft' %} (DRAFT){% endif %}</div>
-      <div>Date: {{ bill.created_at | fdate }}</div>
-    </div>
-  </div>
-  <table class="paper-items">
-    <thead><tr><th>Sr.</th><th class="left">Description of Goods</th><th>Qty</th><th>Rate</th><th>Amount</th></tr></thead>
-    <tbody>
-    {% for l in lines %}
+
+    <table class="rows-src">
+      {% for l in lines %}
+      {% set g_ = line_gst[loop.index0] %}
       <tr>
         <td>{{ loop.index }}</td>
-        <td class="left">{% if l.code %}{{ l.code }} · {% endif %}{{ l.name }}{% if l.line_discount_pct %} ({{ "%g" | format(l.line_discount_pct) }}% off){% endif %}</td>
+        <td class="left">{% if l.code %}{{ l.code }} · {% endif %}{{ l.name }}{% if l.line_discount_pct %} ({{ "%g" | format(l.line_discount_pct) }}% off){% endif %}
+          {% if g_.rate > 0 %}<div class="gst-note">incl. GST {{ "%g" | format(g_.rate) }}%: Rs {{ '%.2f' | format(g_.gst / 100) }}</div>{% endif %}</td>
         <td>{{ l.quantity }}</td>
         <td>{{ l.rate | rupees }}</td>
         <td>{{ l.line_amount | rupees }}</td>
       </tr>
-    {% endfor %}
-    {% for _ in range([8 - lines | length, 0] | max) %}<tr class="blank"><td></td><td></td><td></td><td></td><td></td></tr>{% endfor %}
-    </tbody>
-  </table>
-  <table class="paper-totals">
-    {% if whole_off or bill.shipping or bill.round_off %}<tr><td>Subtotal</td><td>{{ subtotal | rupees }}</td></tr>{% endif %}
-    {% if bill.whole_discount_pct %}<tr><td>Whole-bill discount ({{ "%g" | format(bill.whole_discount_pct) }}%)</td><td>−{{ whole_off | rupees }}</td></tr>{% endif %}
-    <tr><td>Shipping &amp; Handling</td><td>{% if bill.shipping %}{{ bill.shipping | rupees }}{% endif %}</td></tr>
-    {% if bill.round_off %}<tr><td>Round off</td><td>{{ '%+.2f' | format(bill.round_off / 100) }}</td></tr>{% endif %}
-    <tr class="grand"><td>Total</td><td>{{ bill.total | rupees }}</td></tr>
-    {% if bill.due_amount and bill.status == 'Saved' %}<tr><td>Payment due{% if bill.due_date %} ({{ bill.due_date | fdate }}){% endif %}</td><td>{{ bill.due_amount | rupees }}</td></tr>{% endif %}
-  </table>
-  <div class="paper-bank">
-    {% if g.shop['bank_details'] %}<div><strong>Bank Details:</strong><br>{{ g.shop['bank_details'] | e | replace('
+      {% endfor %}
+    </table>
+
+    <div class="sh-totals">
+      <table class="paper-totals">
+        {% if whole_off or bill.shipping or bill.round_off %}<tr><td>Subtotal</td><td>{{ subtotal | rupees }}</td></tr>{% endif %}
+        {% if bill.whole_discount_pct or whole_off %}<tr><td>Whole-bill discount{% if bill.whole_discount_pct %} ({{ "%g" | format(bill.whole_discount_pct) }}%){% endif %}</td><td>−{{ whole_off | rupees }}</td></tr>{% endif %}
+        <tr><td>Shipping &amp; Handling</td><td>{% if bill.shipping %}{{ bill.shipping | rupees }}{% endif %}</td></tr>
+        {% if bill.round_off %}<tr><td>Round off</td><td>{{ '%+.2f' | format(bill.round_off / 100) }}</td></tr>{% endif %}
+        <tr class="grand"><td>Total</td><td>{{ bill.total | rupees }}</td></tr>
+        {% if gst.show %}
+        <tr><td>GST included (subtotal)</td><td>{{ gst.gst | rupees }}</td></tr>
+        <tr><td>Taxable value</td><td>{{ gst.taxable | rupees }}</td></tr>
+        {% if gst.by_rate | length > 1 %}<tr><td colspan="2" class="gst-rates">{% for rate, amount in gst.by_rate %}GST {{ "%g" | format(rate) }}%: Rs {{ '%.2f' | format(amount / 100) }}{{ "   " if not loop.last }}{% endfor %}</td></tr>{% endif %}
+        {% endif %}
+        {% if bill.due_amount and bill.status == 'Saved' %}<tr><td>Payment due{% if bill.due_date %} ({{ bill.due_date | fdate }}){% endif %}</td><td>{{ bill.due_amount | rupees }}</td></tr>{% endif %}
+      </table>
+    </div>
+
+    <div class="sh-foot">
+      {% if g.shop['bank_details'] %}<div class="bank"><strong>Bank Details:</strong><br>{{ g.shop['bank_details'] | e | replace('
 ', '<br>' | safe) }}</div>{% endif %}
-    {% if g.shop['terms'] %}<div class="terms">{{ g.shop['terms'] }}</div>{% endif %}
+      {% if g.shop['terms'] %}<div class="terms"><strong>Terms:</strong><br>{{ g.shop['terms'] | e | replace('
+', '<br>' | safe) }}</div>{% endif %}
+      {% if qr_codes %}
+      <div class="paper-qr">
+        {% for q in qr_codes %}
+        <figure><img src="{{ url_for('settings.uploaded_file', filename=q.filename) }}" alt="{{ q.label }}"><figcaption>{{ q.label }}</figcaption></figure>
+        {% endfor %}
+      </div>
+      {% endif %}
+      <footer class="paper-thanks">Thank you for shopping at {{ g.shop['name'] }}</footer>
+    </div>
   </div>
-  {% if qr_codes %}
-  <div class="paper-qr">
-    {% for q in qr_codes %}
-    <figure><img src="{{ url_for('settings.uploaded_file', filename=q.filename) }}" alt="{{ q.label }}"><figcaption>{{ q.label }}</figcaption></figure>
-    {% endfor %}
-  </div>
-  {% endif %}
-  <footer class="paper-thanks">Thank you for shopping at {{ g.shop['name'] }}</footer>
+  <div id="sheets"></div>
 </section>
+<script src="{{ url_for('static', filename='js/bill_print.js') }}"></script>
 {% endblock %}

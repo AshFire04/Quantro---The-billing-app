@@ -45,7 +45,7 @@ def test_import_adds_products_with_categories_and_suppliers_already_in_the_lists
                            [36, "Cushion", None, 299, None, None, None, None, None, None]])
     assert "2 products added" in page
     assert products(app) == [("KA36", "Tray", "Trays", 45050, 10, 3, "6302", "Sai", 30000, 5.0),
-                             ("36", "Cushion", "", 29900, 0, 5, "", "", 0, None)]
+                             ("36", "Cushion", "", 29900, 0, 5, "", "", 0, 0.0)]
 
 
 def test_a_category_or_supplier_not_in_the_lists_is_an_error_and_is_not_created(client, app):

@@ -45,9 +45,8 @@
   <label>Cost price (₹)
     <input name="cost_price" inputmode="decimal" value="{{ product.cost_price or '' }}" placeholder="What it costs you">
   </label>
-  <label>GST rate (%)
-    <input name="gst_rate" inputmode="decimal" list="gst-slabs" value="{{ product.gst_rate if product.gst_rate is not none else '' }}" placeholder="e.g. 18">
-    <datalist id="gst-slabs"><option value="0"><option value="5"><option value="12"><option value="18"><option value="28"></datalist>
+  <label>GST % (already included in the price)
+    <input name="gst_rate" inputmode="decimal" value="{{ product.gst_rate if product.gst_rate is not none else '' }}" placeholder="0">
   </label>
   </div>
   </div>

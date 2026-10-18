@@ -216,6 +216,7 @@ def price_details(db, shop_id, items, whole_discount_pct=None, shipping=0, offer
             "quantity": quantity,
             "rate": product["price"],
             "cost": product["cost_price"],
+            "gst_rate": product["gst_rate"] or 0,
             "line_discount_pct": float(discount),
             "line_amount": take_percent_off(product["price"] * quantity, discount),
         })
@@ -383,10 +384,10 @@ def save_bill(db, shop_id, items, customer_name, customer_phone="", place_of_sal
             for line in lines:
                 db.execute(
                     "INSERT INTO bill_lines (bill_id, product_id, code, name, quantity, "
-                    "rate, line_discount_pct, line_amount, cost) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "rate, line_discount_pct, line_amount, cost, gst_rate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (bill_id, line["product_id"], line["code"], line["name"],
                      line["quantity"], line["rate"], line["line_discount_pct"],
-                     line["line_amount"], line["cost"]))
+                     line["line_amount"], line["cost"], line["gst_rate"]))
                 if draft:
                     continue                        # a draft never touches stock
                 # The "stock >= ?" check makes this safe even if the page was out of date.

@@ -108,14 +108,14 @@ def read_form(product_id=None, f=None):
     except ValueError:
         return values, "Enter the cost price as a number, like 300 or 300.50"
     gst = f.get("gst_rate", "").strip().rstrip("%")
-    values["gst_rate"] = None
+    values["gst_rate"] = 0.0                         # no GST % means 0
     if gst:
         try:
             rate = Decimal(gst)
         except InvalidOperation:
-            return values, "Enter the GST rate as a number, like 5 or 18"
+            return values, "Enter the GST % as a number, like 5 or 18"
         if not rate.is_finite() or not 0 <= rate <= 100 or rate != rate.quantize(Decimal("0.01")):
-            return values, "The GST rate must be between 0 and 100, with at most two decimal places"
+            return values, "The GST % must be between 0 and 100, with at most two decimal places"
         values["gst_rate"] = float(rate)
     try:
         values["price"] = rupees_to_paise(f.get("price", ""))

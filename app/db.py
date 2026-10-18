@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS shops (
     logo TEXT NOT NULL DEFAULT '',              -- file name of the shop's logo in instance/uploads/
     email TEXT NOT NULL DEFAULT '',
     default_source TEXT NOT NULL DEFAULT '',    -- what a new bill's "Order came through" starts as
-    default_method TEXT NOT NULL DEFAULT ''     -- what a new bill's payment method starts as
+    default_method TEXT NOT NULL DEFAULT '',    -- what a new bill's payment method starts as
+    gstin TEXT NOT NULL DEFAULT ''              -- optional, printed in the bill's header
 );
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -140,7 +141,8 @@ CREATE TABLE IF NOT EXISTS bill_lines (
     rate INTEGER NOT NULL,             -- paise, copied at the time of sale
     line_discount_pct REAL NOT NULL DEFAULT 0,
     line_amount INTEGER NOT NULL,      -- paise, after the line discount
-    cost INTEGER NOT NULL DEFAULT 0    -- paise per item, the product's cost price at the time of sale
+    cost INTEGER NOT NULL DEFAULT 0,   -- paise per item, the product's cost price at the time of sale
+    gst_rate REAL NOT NULL DEFAULT 0   -- percent, the product's GST % at the time of sale (0 = none saved)
 );
 CREATE TABLE IF NOT EXISTS payments (  -- a bill has one or more; together they equal its total
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -338,6 +340,13 @@ def init_db():
         if name not in product_columns:
             db.execute(f"ALTER TABLE products ADD COLUMN {name} {definition}")
     line_columns = [row["name"] for row in db.execute("PRAGMA table_info(bill_lines)")]
+    if "gst_rate" not in line_columns:
+        backup_database(db, "before-gst")           # once: the column added below makes this false
+        db.execute("ALTER TABLE bill_lines ADD COLUMN gst_rate REAL NOT NULL DEFAULT 0")
+    if "gstin" not in shop_columns:
+        db.execute("ALTER TABLE shops ADD COLUMN gstin TEXT NOT NULL DEFAULT ''")
+    if db.execute("SELECT 1 FROM products WHERE gst_rate IS NULL LIMIT 1").fetchone():
+        db.execute("UPDATE products SET gst_rate = 0 WHERE gst_rate IS NULL")     # no GST % means 0
     if "cost" not in line_columns:
         db.execute("ALTER TABLE bill_lines ADD COLUMN cost INTEGER NOT NULL DEFAULT 0")
     for name in ("logo", "email", "default_source", "default_method"):

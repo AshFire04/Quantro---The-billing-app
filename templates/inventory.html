@@ -42,7 +42,7 @@
   <div class="card table-wrap">
     <table class="compact">
       <thead>
-        <tr><th>Item Code/Bar Code</th><th>Name</th><th>Category</th><th>Supplier</th><th class="num">Stock</th><th class="num">Selling Price</th><th>Status</th><th></th></tr>
+        <tr><th>Item Code/Bar Code</th><th>Name</th><th>Category</th><th>Supplier</th><th class="num">Stock</th><th class="num">Selling Price</th><th class="num">GST %</th><th>Status</th><th></th></tr>
       </thead>
       <tbody>
       {% for p in products %}
@@ -53,6 +53,7 @@
           <td>{{ p.supplier }}</td>
           <td class="num mono">{{ p.stock }}</td>
           <td class="num mono">{{ p.price | rupees }}</td>
+          <td class="num mono">{{ "%g" | format(p.gst_rate or 0) }}</td>
           <td><span class="badge {{ p.status | lower | replace(' ', '-') }}">{{ p.status }}</span></td>
           <td class="actions">
             <a class="btn" href="{{ url_for('inventory.edit', product_id=p.id) }}">Edit</a>

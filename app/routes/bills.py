@@ -11,6 +11,7 @@ from ..services.billing import (BillError, CUSTOMER_TYPES, cancel_bill, change_p
                                 prepare_bill_customer, save_bill_customer)
 from ..services.states import PLACES
 from ..services.export import bills_workbook
+from ..services.gst import breakdown as gst_breakdown
 from ..services.money import format_date
 from ..services.period import date_range
 
@@ -118,7 +119,10 @@ def view(bill_id):
     other = lambda bill_id: db.execute(
         "SELECT id, bill_label FROM bills WHERE id = ? AND shop_id = ?",
         (bill_id, g.shop["id"])).fetchone() if bill_id else None
-    return render_template("bill_view.html", bill=bill, lines=lines, payments=payments, qr_codes=qr_codes,
+    subtotal = sum(l["line_amount"] for l in lines)
+    whole_off = subtotal - (bill["total"] - bill["shipping"] - bill["round_off"])
+    line_gst, gst = gst_breakdown(lines, whole_off)
+    return render_template("bill_view.html", bill=bill, lines=lines, line_gst=line_gst, gst=gst, payments=payments, qr_codes=qr_codes,
                            replaced_by=other(bill["replaced_by"]), replaces=other(bill["replaces"]),
                            just_saved=request.args.get("saved") == "1",
                            draft_saved=request.args.get("saved") == "draft",

@@ -53,12 +53,16 @@ def details():
     if email and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
         flash("That email address doesn't look right")
         return redirect(url_for("settings.index"))
+    gstin = f.get("gstin", "").replace(" ", "").upper()
+    if gstin and not re.fullmatch(r"[0-9A-Z]{15}", gstin):
+        flash("The GSTIN should be 15 letters and numbers, like 29ABCDE1234F1Z5")
+        return redirect(url_for("settings.index"))
     db = get_db()
     with db:
         db.execute("UPDATE shops SET name = ?, phone = ?, website = ?, email = ?, "
-                   "bank_details = ?, terms = ? WHERE id = ?",
+                   "bank_details = ?, terms = ?, gstin = ? WHERE id = ?",
                    (name, f.get("phone", "").strip(), f.get("website", "").strip(), email,
-                    f.get("bank_details", "").strip(), f.get("terms", "").strip(),
+                    f.get("bank_details", "").strip(), f.get("terms", "").strip(), gstin,
                     g.shop["id"]))
     flash("Shop details saved", "ok")
     return redirect(url_for("settings.index"))

@@ -164,4 +164,4 @@ def test_terms_keep_their_line_breaks_on_the_bill(client):
     client.post("/settings/details", data={"name": "Shop", "terms": "1. No returns\n2. No refunds"})
     bill(client)
     assert "white-space: pre-line" in client.get("/static/css/app.css").data.decode()
-    assert "1. No returns\n2. No refunds" in page(client, "/bills/1")
+    assert "1. No returns<br>2. No refunds" in page(client, "/bills/1")

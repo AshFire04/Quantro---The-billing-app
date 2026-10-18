@@ -102,7 +102,7 @@ def test_bad_extra_product_details_are_refused(client):
     create(client)
     base = {"name": "Tray", "price": "450", "stock": "5", "low_stock_level": "2"}
     for extra, message in [({"hsn": "94A3"}, "digits only"), ({"cost_price": "abc"}, "cost price"),
-                           ({"gst_rate": "150"}, "between 0 and 100"), ({"gst_rate": "x"}, "GST rate")]:
+                           ({"gst_rate": "150"}, "between 0 and 100"), ({"gst_rate": "x"}, "GST %")]:
         res = client.post("/inventory/new", data={**base, **extra}, follow_redirects=True)
         assert message in res.data.decode()
     assert "No products yet" in client.get("/inventory/").data.decode()
