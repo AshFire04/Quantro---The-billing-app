@@ -172,6 +172,7 @@ function renderBill() {
     $("lines").append(row);
   }
   $("save").disabled = ids.length === 0;
+  if ($("draft")) $("draft").disabled = ids.length === 0;
   $("error").hidden = true;
   renderCards();                        // the stock left on each item changes as the bill changes
   refreshTotals();
@@ -258,10 +259,23 @@ function showNote(text, tone) {
   note.hidden = !text;
   if (selectedCustomer && tone === "ok") {
     const clear = document.createElement("button");
-    clear.type = "button"; clear.className = "link-button"; clear.textContent = "Not them? Clear";
-    clear.onclick = () => { selectedCustomer = null; showNote(""); };
+    clear.type = "button"; clear.className = "link-button"; clear.id = "not-them"; clear.textContent = "Not them";
+    clear.onclick = notThem;
     note.append(" ", clear);
   }
+}
+
+// "Not them": the phone matched the wrong person. Forget the match and start the customer again;
+// the items, discounts and Retail/B2B choice stay as they are. No confirmation.
+function notThem() {
+  clearTimeout(phoneTimer);
+  selectedCustomer = null;                   // the bill is saved with no customer_id
+  $("phone").value = "";
+  $("customer").value = "";
+  $("location").value = "";
+  $("customer-results").hidden = true;
+  showNote("");
+  $("phone").focus();
 }
 
 function pickCustomer(c) {
@@ -466,8 +480,10 @@ function paymentsForServer() {
 
 // ---- Save ----
 
-$("save").onclick = async () => {
+// Draft bill / Update draft keep the bill as a draft (no stock change); Save finalises it.
+async function submitBill(asDraft) {
   $("save").disabled = true;
+  if ($("draft")) $("draft").disabled = true;
   const items = Object.entries(bill).map(([id, quantity]) =>
     ({ product_id: Number(id), quantity, discount: discounts[id] || "" }));
   try {
@@ -484,6 +500,8 @@ $("save").onclick = async () => {
                              order_source: $("source").value, order_source_other: $("source-other").value,
                              payments: paymentsForServer(),
                              replaces: prefill ? prefill.replaces : null,
+                             draft_id: prefill ? prefill.draft_id : null,
+                             draft: asDraft,
                              offer_ids: [...picked] }),
     });
     const data = await res.json();
@@ -494,7 +512,10 @@ $("save").onclick = async () => {
   }
   $("error").hidden = false;
   $("save").disabled = false;
-};
+  if ($("draft")) $("draft").disabled = false;
+}
+$("save").onclick = () => submitBill(false);
+if ($("draft")) $("draft").onclick = () => submitBill(true);
 
 // ---- Editing a saved bill: fill the screen from the old bill's copy ----
 
@@ -503,7 +524,9 @@ const prefill = JSON.parse(document.getElementById("prefill-data").textContent);
 function applyPrefill(old) {
   for (const item of old.items) {
     const p = byId[item.product_id];
-    bill[item.product_id] = Math.min(item.quantity, p.stock);   // p.stock already counts the old bill's items
+    // p.stock already counts a saved bill's items. A draft keeps its quantity as saved, even if the
+    // shelf has since run short: finalising is what checks the stock.
+    bill[item.product_id] = old.draft_id ? item.quantity : Math.min(item.quantity, p.stock);
     if (item.discount) discounts[item.product_id] = item.discount;
   }
   $("customer").value = old.customer;

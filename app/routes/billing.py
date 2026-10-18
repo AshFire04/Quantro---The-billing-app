@@ -66,7 +66,8 @@ def edit(bill_id):
                      (bill_id, g.shop["id"])).fetchone()
     if old is None:
         return redirect(url_for("bills.index"))
-    if old["status"] != "Saved" or old["replaced_by"] is not None:
+    is_draft = old["status"] == "Draft"
+    if not is_draft and (old["status"] != "Saved" or old["replaced_by"] is not None):
         flash("This bill has already been cancelled or replaced, so it can't be edited")
         return redirect(url_for("bills.view", bill_id=bill_id))
 
@@ -79,9 +80,10 @@ def edit(bill_id):
         if product is None:
             skipped.append(line["name"])           # removed from Inventory since the sale
             continue
-        # This bill's items are still out of stock; saving puts them back first, so they
-        # count as available while editing.
-        product["stock"] += line["quantity"]
+        # A saved bill's items are still out of stock; saving puts them back first, so they
+        # count as available while editing. A draft holds no stock, so nothing is added.
+        if not is_draft:
+            product["stock"] += line["quantity"]
         items.append({"product_id": line["product_id"], "quantity": line["quantity"],
                       "discount": "%g" % line["line_discount_pct"] if line["line_discount_pct"] else ""})
 
@@ -97,7 +99,8 @@ def edit(bill_id):
     picked = [int(i) for i in old["offer_ids"].split(",") if i and int(i) in still_on]
     source, source_other = split_other(old["order_source"], source_choices)
     prefill = {
-        "replaces": bill_id,
+        "replaces": None if is_draft else bill_id,
+        "draft_id": bill_id if is_draft else None,
         "customer": old["customer_name"], "phone": old["customer_phone"],
         "customer_id": old["customer_id"],
         "location": old["customer_location"], "place": old["place_of_sale"],
@@ -123,13 +126,14 @@ def edit(bill_id):
 @login_required
 def save():
     data = request.get_json(silent=True) or {}
-    replaces = data.get("replaces")
+    replaces, draft_id = data.get("replaces"), data.get("draft_id")
+    draft = data.get("draft") is True
     try:
-        if replaces is not None:
-            try:
-                replaces = int(replaces)
-            except (TypeError, ValueError):
-                raise BillError("That bill wasn't found")
+        try:
+            replaces = None if replaces is None else int(replaces)
+            draft_id = None if draft_id is None else int(draft_id)
+        except (TypeError, ValueError):
+            raise BillError("That bill wasn't found")
         bill_id = save_bill(get_db(), g.shop["id"], data.get("items", []),
                             customer_name=str(data.get("customer", "")),
                             customer_phone=str(data.get("phone", "")),
@@ -144,9 +148,10 @@ def save():
                             order_date=str(data.get("order_date", "")),
                             whole_discount=data.get("whole_discount", ""),
                             shipping=data.get("shipping", ""),
-                            replaces=replaces, offer_ids=data.get("offer_ids") or [])
+                            replaces=replaces, offer_ids=data.get("offer_ids") or [],
+                            draft=draft, draft_id=draft_id)
     except BillError as e:
         return jsonify(error=str(e)), 400
-    return jsonify(url=url_for("bills.view", bill_id=bill_id, saved=1))
+    return jsonify(url=url_for("bills.view", bill_id=bill_id, saved="draft" if draft else 1))
 
 

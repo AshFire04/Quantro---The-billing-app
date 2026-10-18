@@ -63,7 +63,8 @@ CREATE TABLE IF NOT EXISTS bills (
     whole_discount_pct REAL NOT NULL DEFAULT 0,
     shipping INTEGER NOT NULL DEFAULT 0,  -- paise
     total INTEGER NOT NULL,               -- paise
-    status TEXT NOT NULL DEFAULT 'Saved', -- Saved or Cancelled
+    status TEXT NOT NULL DEFAULT 'Saved', -- Saved (final), Draft or Cancelled
+    draft_created_at TEXT NOT NULL DEFAULT '', -- drafts: when the draft was first saved; kept when finalised
     replaced_by INTEGER REFERENCES bills(id),
     replaces INTEGER REFERENCES bills(id),
     offer_ids TEXT NOT NULL DEFAULT '',      -- offers picked on the bill, like '1,3'
@@ -262,6 +263,9 @@ def migrate_customers(db):
 
 def init_db():
     db = get_db()
+    has_bills = db.execute("SELECT 1 FROM sqlite_master WHERE name = 'bills'").fetchone()
+    if has_bills and "draft_created_at" not in [r["name"] for r in db.execute("PRAGMA table_info(bills)")]:
+        backup_database(db, "before-drafts")       # once: the column added below makes this false
     had_lists = db.execute("SELECT 1 FROM sqlite_master WHERE name = 'payment_methods'").fetchone()
     had_catalog = db.execute("SELECT 1 FROM sqlite_master WHERE name = 'suppliers'").fetchone()
     db.executescript(SCHEMA)
@@ -300,7 +304,7 @@ def init_db():
              "due_date": "TEXT", "due_amount": "INTEGER", "offer_ids": "TEXT",
              "offers_applied": "TEXT", "round_off": "INTEGER", "customer_type": "TEXT",
              "customer_id": "INTEGER", "fy": "INTEGER", "bill_seq": "INTEGER",
-             "bill_label": "TEXT", "customer_other_phone": "TEXT"}
+             "bill_label": "TEXT", "customer_other_phone": "TEXT", "draft_created_at": "TEXT"}
     for name, kind in added.items():
         if name not in columns:
             default = ("0" if kind == "INTEGER" else "'Retail'" if name == "customer_type"

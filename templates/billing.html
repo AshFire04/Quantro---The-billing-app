@@ -8,7 +8,14 @@
     <a class="btn primary" href="{{ url_for('inventory.new') }}">Add product</a>
   </div>
 {% else %}
-{% if editing %}
+{% if editing and editing.status == 'Draft' %}
+<div class="draft-note">
+  Editing draft {{ editing.bill_label }}. Stock has not been reduced. <b>Update draft</b> keeps it as a draft;
+  <b>Save bill &amp; update stock</b> makes it a real bill (dated today) and takes the items out of stock.
+  <a href="{{ url_for('bills.view', bill_id=editing.id) }}">Leave without saving</a>
+  {% if skipped %}<br>No longer in Inventory, so not copied: {{ skipped | join(", ") }}.{% endif %}
+</div>
+{% elif editing %}
 <div class="flash edit-banner">
   Editing bill {{ editing.bill_label }}. Saving creates a new bill ({{ next_label }}); bill
   {{ editing.bill_label }} will be marked Cancelled and its items go back into stock first.
@@ -26,7 +33,7 @@
 
   <section class="card bill-panel" aria-label="Bill">
     <div class="bill-head">
-      <h1>Bill {{ next_label }}{% if editing %} <small class="muted">replaces {{ editing.bill_label }}</small>{% endif %}</h1>
+      <h1>Bill {{ next_label }}{% if editing %} <small class="muted">{% if editing.status == 'Draft' %}draft{% else %}replaces {{ editing.bill_label }}{% endif %}</small>{% endif %}</h1>
       <div class="head-actions">
         <label class="order-date">Order placed on:
           <input id="order-date" type="date">
@@ -124,7 +131,11 @@
     </div>
 
     <div id="error" class="flash" hidden></div>
-    <button type="button" id="save" class="btn primary wide-btn" disabled>{% if editing %}Save changes (replaces {{ editing.bill_label }}){% else %}Save bill &amp; update stock{% endif %}</button>
+    {% set is_draft = editing and editing.status == 'Draft' %}
+    <div class="save-row">
+      <button type="button" id="save" class="btn primary wide-btn" disabled>{% if editing and not is_draft %}Save changes (replaces {{ editing.bill_label }}){% else %}Save bill &amp; update stock{% endif %}</button>
+      {% if not editing or is_draft %}<button type="button" id="draft" class="btn wide-btn draft" disabled>{% if is_draft %}Update draft{% else %}Draft bill{% endif %}</button>{% endif %}
+    </div>
   </section>
 </div>
 

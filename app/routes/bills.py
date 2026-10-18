@@ -7,7 +7,7 @@ from ..auth import login_required
 from ..db import get_db
 from ..services import choices
 from ..services import customers as people
-from ..services.billing import (BillError, CUSTOMER_TYPES, cancel_bill, receive_due,
+from ..services.billing import (BillError, CUSTOMER_TYPES, cancel_bill, delete_draft, receive_due,
                                 prepare_bill_customer, save_bill_customer)
 from ..services.states import PLACES
 from ..services.export import bills_workbook
@@ -22,7 +22,7 @@ def filtered_bills():
     args = request.args
     q = args.get("q", "").strip()
     f = {key: args.get(key, "").strip()
-         for key in ("source", "mode", "due", "date_from", "date_to", "customer")}
+         for key in ("source", "mode", "due", "status", "date_from", "date_to", "customer")}
     f["date_from"], f["date_to"] = date_range(args)         # this month so far, until chosen otherwise
     sql = ("SELECT bills.*, (SELECT bill_label FROM bills r WHERE r.id = bills.replaced_by) "
            "AS replaced_by_number FROM bills WHERE shop_id = ?")
@@ -49,6 +49,8 @@ def filtered_bills():
     if f["customer"].isdigit():
         sql += " AND customer_id = ?"
         params.append(int(f["customer"]))
+    if f["status"] == "draft":
+        sql += " AND status = 'Draft'"
     if f["due"] == "due":
         sql += " AND due_amount > 0 AND status = 'Saved'"
     if f["date_from"]:
@@ -118,6 +120,7 @@ def view(bill_id):
     return render_template("bill_view.html", bill=bill, lines=lines, payments=payments, qr_codes=qr_codes,
                            replaced_by=other(bill["replaced_by"]), replaces=other(bill["replaces"]),
                            just_saved=request.args.get("saved") == "1",
+                           draft_saved=request.args.get("saved") == "draft",
                            payment_modes=choices.with_other(db, g.shop["id"], "method"))
 
 
@@ -211,6 +214,18 @@ def payment_received(bill_id):
     except BillError as e:
         flash(str(e))
     return redirect(url_for("bills.view", bill_id=bill_id))
+
+@bp.route("/bills/<int:bill_id>/delete-draft", methods=("POST",))
+@login_required
+def delete_draft_bill(bill_id):
+    try:
+        delete_draft(get_db(), g.shop["id"], bill_id)
+        flash("Draft deleted.", "ok")
+    except BillError as e:
+        flash(str(e))
+        return redirect(url_for("bills.view", bill_id=bill_id))
+    return redirect(url_for("bills.index", status="draft"))
+
 
 @bp.route("/bills/<int:bill_id>/cancel", methods=("POST",))
 @login_required

@@ -1,6 +1,6 @@
 """The figures on the Home page. Plain Python, read-only, and always for one shop.
 
-Cancelled bills never count as sales. Money is whole paise, like everywhere else.
+Cancelled bills and drafts never count as sales. Money is whole paise, like everywhere else.
 """
 from datetime import date, timedelta
 
@@ -39,18 +39,18 @@ def home_figures(db, shop_id, today=None):
     def sales_between(start, end):
         """Total of saved bills dated from start to end (both inclusive, 'YYYY-MM-DD')."""
         return db.execute(
-            "SELECT COALESCE(SUM(total), 0) FROM bills WHERE shop_id = ? AND status != 'Cancelled' "
+            "SELECT COALESCE(SUM(total), 0) FROM bills WHERE shop_id = ? AND status = 'Saved' "
             "AND substr(created_at, 1, 10) BETWEEN ? AND ?", (shop_id, start, end)).fetchone()[0]
 
     bills_today = db.execute(
-        "SELECT COUNT(*) FROM bills WHERE shop_id = ? AND status != 'Cancelled' "
+        "SELECT COUNT(*) FROM bills WHERE shop_id = ? AND status = 'Saved' "
         "AND substr(created_at, 1, 10) = ?", (shop_id, day)).fetchone()[0]
     bills_month = db.execute(
-        "SELECT COUNT(*) FROM bills WHERE shop_id = ? AND status != 'Cancelled' "
+        "SELECT COUNT(*) FROM bills WHERE shop_id = ? AND status = 'Saved' "
         "AND substr(created_at, 1, 10) BETWEEN ? AND ?", (shop_id, month_start, day)).fetchone()[0]
     due = db.execute(
         "SELECT COALESCE(SUM(due_amount), 0), COUNT(*) FROM bills "
-        "WHERE shop_id = ? AND status != 'Cancelled' AND due_amount > 0", (shop_id,)).fetchone()
+        "WHERE shop_id = ? AND status = 'Saved' AND due_amount > 0", (shop_id,)).fetchone()
 
     week = []
     for back in range(6, -1, -1):

@@ -152,7 +152,8 @@ def load_offers(db, shop_id, offer_ids):
     return offers
 
 
-def price_details(db, shop_id, items, whole_discount_pct=None, shipping=0, offers=()):
+def price_details(db, shop_id, items, whole_discount_pct=None, shipping=0, offers=(),
+                  check_stock=True):
     """Work out the lines and total for a bill, and which offers changed the price.
 
     items: [{"product_id": 3, "quantity": 2, "discount": "10"}, ...]
@@ -194,7 +195,7 @@ def price_details(db, shop_id, items, whole_discount_pct=None, shipping=0, offer
             (product_id, shop_id)).fetchone()
         if product is None:
             raise BillError("An item on this bill is no longer in Inventory")
-        if quantity > product["stock"]:
+        if check_stock and quantity > product["stock"]:
             raise BillError(f"Only {product['stock']} left of {product['name']}; "
                             "please change the quantity")
         if discount is None:
@@ -234,19 +235,45 @@ def price_bill(db, shop_id, items, whole_discount_pct=Decimal(0), shipping=0, of
     result = price_details(db, shop_id, items, whole_discount_pct, shipping, offers)
     return result["lines"], result["total"]
 
+def check_stock(db, shop_id, items):
+    """Finalising a draft: every item must be on the shelf. Names the first one that is short."""
+    wanted = {}
+    for item in items:
+        try:
+            pid, qty = int(item["product_id"]), int(item["quantity"])
+        except (KeyError, TypeError, ValueError):
+            raise BillError("Something is wrong with an item on the bill")
+        wanted[pid] = wanted.get(pid, 0) + qty
+    for pid, qty in wanted.items():
+        product = db.execute("SELECT name, stock FROM products WHERE id = ? AND shop_id = ? "
+                             "AND active = 1", (pid, shop_id)).fetchone()
+        if product is None:
+            raise BillError("An item on this bill is no longer in Inventory")
+        if qty > product["stock"]:
+            raise BillError(f"Not enough stock of {product['name']}: the bill needs {qty} but "
+                            f"only {product['stock']} left. Nothing was changed.")
+
+
 def save_bill(db, shop_id, items, customer_name, customer_phone="", place_of_sale="",
               order_source="", order_source_other="", payments=None,
               customer_location="", due_amount="", whole_discount="",
               shipping="", replaces=None, offer_ids=(), customer_type="Retail",
-              order_date="", customer_id=None):
-    """Save a bill and lower the stock, all in one go. Returns the new bill's id.
+              order_date="", customer_id=None, draft=False, draft_id=None):
+    """Save a bill and lower the stock, all in one go. Returns the bill's id.
 
     With `replaces` (the id of a saved bill), this is an edit: the old bill's items go back
     into stock, the new bill takes its items out, and the old bill is marked Cancelled with a
     link to the new one. It is still one transaction.
 
+    With `draft=True` the bill is kept as a Draft: stock is not touched or checked, and no
+    customer record is made. With `draft_id` (a Draft's id) that same bill is updated in place
+    (still a draft with `draft=True`), or finalised with `draft=False`: the stock is checked for
+    every item and then taken out, and the bill keeps its number.
+
     If anything fails, nothing is changed: not the bills, not the invoice number, not the stock.
     """
+    if draft_id is not None and replaces is not None:
+        raise BillError("Something is wrong with this bill")
     # Who the bill is for is worked out inside the transaction (see resolve_for_bill); here we
     # only check what can be checked without touching the database.
     customer_name = (customer_name or "").strip()
@@ -255,50 +282,91 @@ def save_bill(db, shop_id, items, customer_name, customer_phone="", place_of_sal
     _, phone_error = normalize_phone(customer_phone)
     if phone_error:
         raise BillError(phone_error)
-    source = clean_choice(order_source, order_source_other,
-                          choices.with_other(db, shop_id, "source"), "order source")
+    if draft and not (order_source or "").strip():
+        source = ""                                 # a draft may be saved before it is complete
+    else:
+        source = clean_choice(order_source, order_source_other,
+                              choices.with_other(db, shop_id, "source"), "order source")
     pay_modes = choices.with_other(db, shop_id, "method")
     typed_whole = str(whole_discount if whole_discount is not None else "").strip()
     whole_pct = parse_percent(typed_whole, "The whole-bill discount") if typed_whole else None
     shipping_paise = parse_shipping(shipping)
     if customer_type not in CUSTOMER_TYPES:
         raise BillError("Please choose Retail or B2B")
-    day = check_order_date(order_date)
+    now = datetime.now()
+    # A bill finalised from a draft is dated the day it is finalised.
+    day = now.date() if (draft_id is not None and not draft) else check_order_date(order_date)
     # The chosen day with the time of saving, so bills on the same day stay in order.
-    created_at = datetime.combine(day, datetime.now().time()).isoformat(timespec="seconds")
+    created_at = datetime.combine(day, now.time()).isoformat(timespec="seconds")
     try:
         with db:  # one transaction: commits at the end, or undoes everything on an error
+            old_draft = None
+            if draft_id is not None:
+                old_draft = db.execute("SELECT * FROM bills WHERE id = ? AND shop_id = ?",
+                                       (draft_id, shop_id)).fetchone()
+                if old_draft is None:
+                    raise BillError("That bill wasn't found")
+                if old_draft["status"] != "Draft":
+                    raise BillError("This bill is not a draft any more")
+                if not draft:
+                    check_stock(db, shop_id, items)
             if replaces is not None:
                 put_old_items_back(db, shop_id, replaces)
             # Priced inside the transaction, so an edit sees the stock the old bill gave back.
             offers = load_offers(db, shop_id, offer_ids)
-            priced = price_details(db, shop_id, items, whole_pct, shipping_paise, offers)
+            priced = price_details(db, shop_id, items, whole_pct, shipping_paise, offers,
+                                   check_stock=not draft)
             lines, total = priced["lines"], priced["total"]
             due = check_due(due_amount, total)
-            payments = check_payments(payments, total - due, pay_modes)
+            if draft and not any((p.get("mode") or "").strip() for p in payments or []):
+                payments = []                       # no payment chosen yet
+            else:
+                payments = check_payments(payments, total - due, pay_modes)
             # The bill keeps its own copy of the name and phone it was made with.
-            customer_id, customer_name, customer_phone = resolve_for_bill(
-                db, shop_id, customer_id, customer_name, customer_phone,
-                customer_location, customer_type)
-            shop = db.execute("SELECT next_invoice_number FROM shops WHERE id = ?",
-                              (shop_id,)).fetchone()
-            number = shop["next_invoice_number"]       # internal; the owner sees the label
-            fy, seq, label = next_bill_label(db, shop_id, day)
-            db.execute("UPDATE shops SET next_invoice_number = ? WHERE id = ?",
-                       (number + 1, shop_id))
-            bill_id = db.execute(
-                "INSERT INTO bills (shop_id, invoice_number, created_at, customer_name, "
-                "customer_phone, customer_location, place_of_sale, order_source, total, "
-                "due_amount, whole_discount_pct, shipping, replaces, offer_ids, "
-                "offers_applied, customer_type, round_off, customer_id, fy, bill_seq, bill_label) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (shop_id, number, created_at,
-                 customer_name, customer_phone, (customer_location or "").strip(),
-                 place_of_sale.strip(), source, total, due,
-                 float(priced["whole_pct"]), shipping_paise, replaces,
-                 ",".join(str(o["id"]) for o in offers),
-                 ", ".join(priced["offers_applied"]), customer_type,
-                 priced["round_off"], customer_id, fy, seq, label)).lastrowid
+            if draft:
+                from .customers import WALK_IN, get as get_customer
+                customer_name = customer_name or WALK_IN
+                customer_phone, _ = normalize_phone(customer_phone)
+                customer_id = (customer_id if customer_id and
+                               get_customer(db, shop_id, customer_id) else 0)
+            else:
+                customer_id, customer_name, customer_phone = resolve_for_bill(
+                    db, shop_id, customer_id, customer_name, customer_phone,
+                    customer_location, customer_type)
+            values = (customer_name, customer_phone, (customer_location or "").strip(),
+                      place_of_sale.strip(), source, total, due, float(priced["whole_pct"]),
+                      shipping_paise, ",".join(str(o["id"]) for o in offers),
+                      ", ".join(priced["offers_applied"]), customer_type, priced["round_off"],
+                      customer_id)
+            if old_draft is not None:
+                # The same bill, in place: id, bill number and draft date stay as they were.
+                bill_id = draft_id
+                db.execute(
+                    "UPDATE bills SET customer_name = ?, customer_phone = ?, customer_location = ?, "
+                    "place_of_sale = ?, order_source = ?, total = ?, due_amount = ?, "
+                    "whole_discount_pct = ?, shipping = ?, offer_ids = ?, offers_applied = ?, "
+                    "customer_type = ?, round_off = ?, customer_id = ?, status = ?, created_at = ? "
+                    "WHERE id = ?",
+                    values + ("Draft" if draft else "Saved", created_at, bill_id))
+                db.execute("DELETE FROM payments WHERE bill_id = ?", (bill_id,))
+                db.execute("DELETE FROM bill_lines WHERE bill_id = ?", (bill_id,))
+            else:
+                shop = db.execute("SELECT next_invoice_number FROM shops WHERE id = ?",
+                                  (shop_id,)).fetchone()
+                number = shop["next_invoice_number"]       # internal; the owner sees the label
+                fy, seq, label = next_bill_label(db, shop_id, day)
+                db.execute("UPDATE shops SET next_invoice_number = ? WHERE id = ?",
+                           (number + 1, shop_id))
+                bill_id = db.execute(
+                    "INSERT INTO bills (shop_id, invoice_number, created_at, customer_name, "
+                    "customer_phone, customer_location, place_of_sale, order_source, total, "
+                    "due_amount, whole_discount_pct, shipping, offer_ids, "
+                    "offers_applied, customer_type, round_off, customer_id, replaces, fy, "
+                    "bill_seq, bill_label, status, draft_created_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (shop_id, number, created_at) + values + (
+                        replaces, fy, seq, label, "Draft" if draft else "Saved",
+                        now.isoformat(timespec="seconds") if draft else "")).lastrowid
             if replaces is not None:
                 db.execute("UPDATE bills SET status = 'Cancelled', replaced_by = ? "
                            "WHERE id = ?", (bill_id, replaces))
@@ -312,6 +380,8 @@ def save_bill(db, shop_id, items, customer_name, customer_phone="", place_of_sal
                     (bill_id, line["product_id"], line["code"], line["name"],
                      line["quantity"], line["rate"], line["line_discount_pct"],
                      line["line_amount"], line["cost"]))
+                if draft:
+                    continue                        # a draft never touches stock
                 # The "stock >= ?" check makes this safe even if the page was out of date.
                 changed = db.execute(
                     "UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?",
@@ -328,6 +398,20 @@ def save_bill(db, shop_id, items, customer_name, customer_phone="", place_of_sal
     return bill_id
 
 
+def delete_draft(db, shop_id, bill_id):
+    """Throw a draft away. It never took any stock, so there is nothing to put back."""
+    with db:
+        bill = db.execute("SELECT status FROM bills WHERE id = ? AND shop_id = ?",
+                          (bill_id, shop_id)).fetchone()
+        if bill is None:
+            raise BillError("That bill wasn't found")
+        if bill["status"] != "Draft":
+            raise BillError("Only a draft can be deleted")
+        db.execute("DELETE FROM payments WHERE bill_id = ?", (bill_id,))
+        db.execute("DELETE FROM bill_lines WHERE bill_id = ?", (bill_id,))
+        db.execute("DELETE FROM bills WHERE id = ?", (bill_id,))
+
+
 def put_old_items_back(db, shop_id, bill_id):
     """Give a saved bill's items back to stock, ready for it to be replaced.
 
@@ -337,6 +421,8 @@ def put_old_items_back(db, shop_id, bill_id):
                      (bill_id, shop_id)).fetchone()
     if old is None:
         raise BillError("That bill wasn't found")
+    if old["status"] == "Draft":
+        raise BillError("A draft hasn't taken any stock. Delete the draft instead")
     if old["status"] != "Saved" or old["replaced_by"] is not None:
         raise BillError("This bill has already been cancelled or replaced")
     for line in db.execute("SELECT product_id, quantity FROM bill_lines WHERE bill_id = ?",
@@ -357,8 +443,10 @@ def cancel_bill(db, shop_id, bill_id):
 def bill_status(bill):
     """The status the owner sees on a bill, and the colour class for it.
 
-    Cancelled wins; otherwise a bill with money still due is 'Payment due', else 'Paid'.
+    Draft and Cancelled win; otherwise a bill with money still due is 'Payment due', else 'Paid'.
     """
+    if bill["status"] == "Draft":
+        return "Draft", "draft"
     if bill["status"] == "Cancelled":
         return "Cancelled", "cancelled"
     if bill["due_amount"] > 0:
@@ -373,6 +461,8 @@ def receive_due(db, shop_id, bill_id, mode, other=""):
                           (bill_id, shop_id)).fetchone()
         if bill is None:
             raise BillError("That bill wasn't found")
+        if bill["status"] == "Draft":
+            raise BillError("This bill is still a draft. Save it as a bill first")
         if bill["status"] != "Saved":
             raise BillError("This bill is cancelled")
         if bill["due_amount"] <= 0:
