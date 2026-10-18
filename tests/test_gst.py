@@ -144,7 +144,7 @@ def test_two_rates_show_a_breakdown_by_rate(client):
     assert "GST 18%: Rs 21.24" in page and "GST 5%: Rs 5.00" in page
 
 
-def test_the_paper_has_a6_pages_with_header_footer_and_a_gstin(client):
+def test_the_paper_has_a5_pages_with_header_footer_and_a_gstin(client):
     make_bill(client)
     client.post("/settings/details", data={"name": "Shop", "gstin": "29abcde1234f1z5"})
     page = html.unescape(client.get("/bills/1").data.decode())
@@ -153,7 +153,7 @@ def test_the_paper_has_a6_pages_with_header_footer_and_a_gstin(client):
     bad = client.post("/settings/details", data={"name": "Shop", "gstin": "123"}, follow_redirects=True)
     assert "GSTIN should be 15" in bad.data.decode()
     css = open("static/css/print.css", encoding="utf-8").read()
-    assert "size: 105mm 148mm" in css and "margin: 4mm" in css
+    assert "size: 148mm 210mm" in css and "margin: 4mm" in css
 
 
 def test_the_upgrade_adds_the_gst_columns_once_and_backs_up_first(client, app):
@@ -181,17 +181,17 @@ def test_layout_rules_thin_lines_one_thick_border_footer_columns_and_no_oval_qty
     css = open("static/css/print.css", encoding="utf-8").read()
     assert "border: 0.8mm solid #000" in css and css.count("0.8mm solid") == 1     # the one outer border
     assert "0.3mm solid #000" in css and "1px" not in css
-    assert "grid-template-columns: 1fr 1fr" in css and "table-layout: fixed" in css
+    assert "table-layout: fixed" in css
     assert ".qty" not in css and "white-space: nowrap" in css
     js = open("static/js/bill_print.js", encoding="utf-8").read()
     assert 'class="qty"' not in js                                  # that class is the Billing screen's rounded box
     make_bill(client)
     client.post("/settings/details", data={"name": "Shop", "bank_details": "A/c 1", "terms": "1. a\n2. b"})
     page = html.unescape(client.get("/bills/1").data.decode())
-    assert 'class="fbox"' in page and "<strong>Terms:</strong><br>1. a<br>2. b" in page
+    assert 'class="tot-left"' in page and "<strong>Terms:</strong><br>1. a<br>2. b" in page
     assert page.index("Bank Details:") < page.index("Terms:") < page.index("paper-thanks")
-    totals = page[page.index('class="paper-totals"'):page.index('class="sh-foot"')]
-    assert '<td colspan="4">' in totals and 'class="c-amt"' in totals
+    assert page.index("Bank Details:") < page.index('class="paper-totals"')       # bank and terms sit beside the totals
+    assert "GST Rate" in open("static/js/bill_print.js", encoding="utf-8").read()
 
 
 def test_a_test_draft_can_be_deleted_without_leaving_a_trace(client, app):

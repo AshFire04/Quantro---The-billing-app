@@ -265,3 +265,9 @@ table.compact .badge { padding: 2px 10px; }
 .nowrap { white-space: nowrap; }
 table.compact td, table.compact th { white-space: nowrap; }
 .req { color: var(--color-danger, #b3261e); }
+
+/* Admin / Non-Admin switch in the top bar */
+.mode-switch { margin: 0; }
+.mode-btn { display: inline-flex; border: 1px solid rgba(255,255,255,.6); border-radius: 999px; background: transparent; padding: 2px; cursor: pointer; font: inherit; font-size: .85em; color: var(--color-on-primary); }
+.mode-btn span { padding: 6px 12px; border-radius: 999px; }
+.mode-btn span.on { background: var(--color-on-primary); color: var(--color-primary); font-weight: 600; }

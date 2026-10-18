@@ -23,6 +23,28 @@ def load_user():
                                 (g.user["shop_id"],)).fetchone()
 
 
+# Pages only the admin sees. Logos and QR images stay open: the printed bill needs them.
+ADMIN_ONLY = {"home", "inventory", "profit", "settings"}
+OPEN_ENDPOINTS = {"settings.uploaded_file"}
+
+
+@bp.before_app_request
+def admin_mode():
+    """Admin / Non-Admin work: non-admin only gets Billing, Past bills and Customer Details."""
+    g.is_admin = session.get("admin", True)
+    if (g.user and not g.is_admin and request.blueprint in ADMIN_ONLY
+            and request.endpoint not in OPEN_ENDPOINTS):
+        return redirect(url_for("billing.index"))
+
+
+@bp.route("/mode", methods=("POST",))
+def switch_mode():
+    if g.user is None:
+        return redirect(url_for("auth.login"))
+    session["admin"] = not session.get("admin", True)
+    return redirect(url_for("home.index" if session["admin"] else "billing.index"))
+
+
 def login_required(view):
     @functools.wraps(view)
     def wrapped(*args, **kwargs):

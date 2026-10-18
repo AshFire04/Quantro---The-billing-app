@@ -148,6 +148,7 @@
         <td>{{ loop.index }}</td>
         <td class="left">{% if l.code %}{{ l.code }} · {% endif %}{{ l.name }}{% if l.line_discount_pct %} ({{ "%g" | format(l.line_discount_pct) }}% off){% endif %}
           {% if g_.rate > 0 %}<div class="gst-note">GST {{ "%g" | format(g_.rate) }}%: Rs {{ '%.2f' | format(g_.gst / 100) }}</div>{% endif %}</td>
+        <td>{% if g_.rate > 0 %}{{ "%g" | format(g_.rate) }}%{% endif %}</td>
         <td>{{ l.quantity }}</td>
         <td>{{ l.rate | rupees }}</td>
         <td>{{ l.line_amount | rupees }}</td>
@@ -155,31 +156,29 @@
       {% endfor %}
     </table>
 
-    <div class="sh-totals">
-      <table class="paper-totals"><colgroup><col class="c-sr"><col><col class="c-qty"><col class="c-rate"><col class="c-amt"></colgroup>
-        {% if whole_off or bill.shipping or bill.round_off %}<tr><td colspan="4">Subtotal</td><td>{{ subtotal | rupees }}</td></tr>{% endif %}
-        {% if bill.whole_discount_pct or whole_off %}<tr><td colspan="4">Whole-bill discount{% if bill.whole_discount_pct %} ({{ "%g" | format(bill.whole_discount_pct) }}%){% endif %}</td><td>−{{ whole_off | rupees }}</td></tr>{% endif %}
-        <tr><td colspan="4">Shipping &amp; Handling</td><td>{% if bill.shipping %}{{ bill.shipping | rupees }}{% endif %}</td></tr>
-        {% if bill.round_off %}<tr><td colspan="4">Round off</td><td>{{ '%+.2f' | format(bill.round_off / 100) }}</td></tr>{% endif %}
-        <tr class="grand"><td colspan="4">Total</td><td>{{ bill.total | rupees }}</td></tr>
-        {% if gst.show %}
-        <tr><td colspan="4">Total GST</td><td>{{ gst.gst | rupees }}</td></tr>
-        <tr><td colspan="4">Amount excluding GST</td><td>{{ gst.excl | rupees }}</td></tr>
-        {% if gst.by_rate | length > 1 %}<tr><td colspan="5" class="gst-rates">{% for rate, amount in gst.by_rate %}GST {{ "%g" | format(rate) }}%: Rs {{ '%.2f' | format(amount / 100) }}{{ "   " if not loop.last }}{% endfor %}</td></tr>{% endif %}
-        {% endif %}
-        {% if bill.due_amount and bill.status == 'Saved' %}<tr><td colspan="4">Payment due{% if bill.due_date %} ({{ bill.due_date | fdate }}){% endif %}</td><td>{{ bill.due_amount | rupees }}</td></tr>{% endif %}
-      </table>
-    </div>
-
-    <div class="sh-foot">
-      {% if g.shop['bank_details'] or g.shop['terms'] %}
-      <div class="fbox">
+    <div class="sh-totals"><div class="tot-wrap">
+      <div class="tot-left">
         <div class="bank">{% if g.shop['bank_details'] %}<strong>Bank Details:</strong><br>{{ g.shop['bank_details'] | e | replace('
 ', '<br>' | safe) }}{% endif %}</div>
         <div class="terms">{% if g.shop['terms'] %}<strong>Terms:</strong><br>{{ g.shop['terms'] | e | replace('
 ', '<br>' | safe) }}{% endif %}</div>
       </div>
-      {% endif %}
+      <table class="paper-totals">
+        {% if whole_off or bill.shipping or bill.round_off %}<tr><td>Subtotal</td><td>{{ subtotal | rupees }}</td></tr>{% endif %}
+        {% if bill.whole_discount_pct or whole_off %}<tr><td>Whole-bill discount{% if bill.whole_discount_pct %} ({{ "%g" | format(bill.whole_discount_pct) }}%){% endif %}</td><td>−{{ whole_off | rupees }}</td></tr>{% endif %}
+        <tr><td>Shipping &amp; Handling</td><td>{% if bill.shipping %}{{ bill.shipping | rupees }}{% endif %}</td></tr>
+        {% if bill.round_off %}<tr><td>Round off</td><td>{{ '%+.2f' | format(bill.round_off / 100) }}</td></tr>{% endif %}
+        <tr class="grand"><td>Total</td><td>{{ bill.total | rupees }}</td></tr>
+        {% if gst.show %}
+        <tr><td>Total GST</td><td>{{ gst.gst | rupees }}</td></tr>
+        <tr><td>Amount excluding GST</td><td>{{ gst.excl | rupees }}</td></tr>
+        {% if gst.by_rate | length > 1 %}<tr><td colspan="2" class="gst-rates">{% for rate, amount in gst.by_rate %}GST {{ "%g" | format(rate) }}%: Rs {{ '%.2f' | format(amount / 100) }}{{ "   " if not loop.last }}{% endfor %}</td></tr>{% endif %}
+        {% endif %}
+        {% if bill.due_amount and bill.status == 'Saved' %}<tr><td>Payment due{% if bill.due_date %} ({{ bill.due_date | fdate }}){% endif %}</td><td>{{ bill.due_amount | rupees }}</td></tr>{% endif %}
+      </table>
+    </div></div>
+
+    <div class="sh-foot">
       {% if qr_codes %}
       <div class="paper-qr">
         {% for q in qr_codes %}

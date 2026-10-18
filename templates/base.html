@@ -13,14 +13,21 @@
   <header class="topbar">
     <span class="brand">Quantro</span>
     <nav>
-      <a href="{{ url_for('home.index') }}">Home</a>
+      {% if is_admin %}<a href="{{ url_for('home.index') }}">Home</a>{% endif %}
       <a href="{{ url_for('billing.index') }}">Billing</a>
       <a href="{{ url_for('bills.index') }}">Past bills</a>
       <a href="{{ url_for('customers.index') }}">Customer Details</a>
+      {% if is_admin %}
       <a href="{{ url_for('inventory.index') }}">Inventory</a>
       <a class="nav-end" href="{{ url_for('profit.index') }}">Profit</a>
       <a href="{{ url_for('settings.index') }}">Shop Details</a>
+      {% endif %}
     </nav>
+    <form method="post" action="{{ url_for('auth.switch_mode') }}" class="mode-switch">
+      <button type="submit" class="mode-btn" role="switch" aria-checked="{{ 'true' if is_admin else 'false' }}" title="Switch between Admin and Non-Admin work">
+        <span class="{{ 'on' if not is_admin }}">Non-Admin</span><span class="{{ 'on' if is_admin }}">Admin</span>
+      </button>
+    </form>
     <span class="who">{{ g.shop['name'] }} · <a href="{{ url_for('auth.logout') }}">Sign out</a></span>
   </header>
   {% endif %}

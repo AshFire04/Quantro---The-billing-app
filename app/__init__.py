@@ -41,6 +41,11 @@ def create_app(test_config=None):
     app.jinja_env.filters["sdate"] = short_date
 
     @app.context_processor
+    def admin_flag():
+        from flask import g
+        return {"is_admin": getattr(g, "is_admin", True)}
+
+    @app.context_processor
     def undo_banner():
         """After "Yes, same person" the page is opened with ?undo=<token>: show Undo for 30 seconds."""
         from flask import g, request
@@ -55,7 +60,8 @@ def create_app(test_config=None):
 
     @app.route("/")
     def index():
-        return redirect(url_for("home.index"))
+        from flask import g
+        return redirect(url_for("home.index" if getattr(g, "is_admin", True) else "billing.index"))
 
     return app
 

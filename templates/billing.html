@@ -5,7 +5,7 @@
 {% if not products %}
   <div class="card empty">
     <p>No products yet. Add some in Inventory before making a bill.</p>
-    <a class="btn primary" href="{{ url_for('inventory.new') }}">Add product</a>
+    {% if is_admin %}<a class="btn primary" href="{{ url_for('inventory.new') }}">Add product</a>{% endif %}
   </div>
 {% else %}
 {% if editing and editing.status == 'Draft' %}

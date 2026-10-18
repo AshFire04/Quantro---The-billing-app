@@ -1,4 +1,4 @@
-// Lays the printed bill out as A6 sheets. Every sheet carries the full header and footer; the item
+// Lays the printed bill out as A5 sheets. Every sheet carries the full header and footer; the item
 // rows are spread over as many sheets as needed (a row is never split), "Continued on next page"
 // closes every sheet but the last, and the totals sit on the last sheet with ruled blank rows
 // filling the space between. Plain browser printing: the Print button still calls window.print().
@@ -19,9 +19,9 @@
     body.className = "sh-body";
     const table = document.createElement("table");
     table.className = "paper-items";
-    table.innerHTML = '<colgroup><col class="c-sr"><col><col class="c-qty"><col class="c-rate"><col class="c-amt"></colgroup>' +
+    table.innerHTML = '<colgroup><col class="c-sr"><col><col class="c-gst"><col class="c-qty"><col class="c-rate"><col class="c-amt"></colgroup>' +
       '<thead><tr><th class="c-sr">Sr.</th><th class="left">Description of Goods</th>' +
-      '<th>Qty</th><th>Rate</th><th>Amount</th></tr></thead><tbody></tbody>';
+      '<th class="c-gstth">GST Rate</th><th>Qty</th><th>Rate</th><th>Amount</th></tr></thead><tbody></tbody>';
     body.append(table);
     sheet.append(body);
     sheet.append(src.querySelector(".sh-foot").cloneNode(true));
@@ -31,7 +31,7 @@
   function blankRow() {
     const tr = document.createElement("tr");
     tr.className = "blank";
-    tr.innerHTML = "<td></td><td></td><td></td><td></td><td></td>";
+    tr.innerHTML = "<td></td><td></td><td></td><td></td><td></td><td></td>";
     return tr;
   }
 

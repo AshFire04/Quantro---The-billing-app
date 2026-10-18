@@ -45,7 +45,7 @@ def test_draft_shows_in_past_bills_with_draft_status_and_filter(client, shop):
     save(shop, [{"product_id": TRAY, "quantity": 1}], "Finalone")
     page = client.get("/bills").data.decode()
     assert "Draftie" in page and 'status-draft">Draft</span>' in page
-    assert f"/billing/edit/{draft_id}" in page and "Delete draft" in page
+    assert f"/billing/edit/{draft_id}" not in page and "Delete draft" not in page   # no buttons on the list
     only = client.get("/bills?status=draft").data.decode()
     assert "Draftie" in only and "Finalone" not in only
 

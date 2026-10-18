@@ -251,8 +251,10 @@
           </label>
           <label class="sd-field" id="category-field">
             <span>Category</span>
-            <input type="text" name="category" list="categories" placeholder="e.g. Bedsheets">
-            <datalist id="categories">{% for c in categories %}<option value="{{ c }}">{% endfor %}</datalist>
+            <select name="category">
+              {% for c in categories_list %}<option value="{{ c.name }}">{{ c.name }}</option>
+              {% else %}<option value="">Add product categories below first</option>{% endfor %}
+            </select>
           </label>
           <div class="sd-field" id="exclude-field" hidden>
             <span>Except categories (optional)</span>
