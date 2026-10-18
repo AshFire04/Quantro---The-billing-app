@@ -1,12 +1,13 @@
 """The GST breakdown printed on a bill. Plain Python, read-only.
 
-Prices already include GST, so this never adds anything: it only shows how much of what the
-customer pays is GST. Money is whole paise.
+The selling price is what the customer pays, and GST never changes it. GST is a percentage of
+the amount charged for the line (its "net": after item offers and its share of the whole-bill
+discount). Money is whole paise.
 
 Order: the whole-bill discount (and bill offers) is shared over the lines in proportion to each
 line's amount after its own discount, any leftover paisa going on the last line. Then, per line,
-    GST = net x rate / (100 + rate), rounded half up to the paisa,   taxable = net - GST.
-The GST subtotal is the sum of the rounded line figures, so the printed numbers add up exactly.
+    GST = net x rate / 100, rounded half up to the paisa,   amount after GST = net - GST.
+The total GST is the sum of the rounded line figures, so the printed numbers add up exactly.
 Shipping & handling carries no GST, and the rupee round-off never touches these figures.
 """
 from decimal import Decimal
@@ -17,11 +18,11 @@ def hundredths(rate):
 
 
 def line_gst(net, rate):
-    """GST inside a GST-inclusive amount, rounded half up to the paisa."""
+    """GST on the amount charged for a line: net x rate / 100, rounded half up to the paisa."""
     h = hundredths(rate)
     if h <= 0 or net <= 0:
         return 0
-    return (net * h * 2 + (10000 + h)) // (2 * (10000 + h))
+    return (net * h * 2 + 10000) // 20000
 
 
 def share_out(amounts, discount):
@@ -36,7 +37,7 @@ def share_out(amounts, discount):
 def breakdown(lines, whole_discount):
     """lines: rows with line_amount and gst_rate (paise, percent). Returns (per-line, summary).
 
-    per-line: [{"net", "gst", "rate"}]. summary: {"show", "gst", "taxable", "by_rate"}, where
+    per-line: [{"net", "gst", "rate"}]. summary: {"show", "gst", "excl", "by_rate"}, where
     `show` is False when every rate is 0 (or the bill is an older one with no GST saved).
     """
     amounts = [l["line_amount"] for l in lines]
@@ -50,4 +51,4 @@ def breakdown(lines, whole_discount):
     total_gst = sum(gsts)
     return ([{"net": n, "gst": g, "rate": r} for n, g, r in zip(nets, gsts, rates)],
             {"show": any(r > 0 for r in rates), "gst": total_gst,
-             "taxable": sum(nets) - total_gst, "by_rate": sorted(by_rate.items())})
+             "excl": sum(nets) - total_gst, "by_rate": sorted(by_rate.items())})

@@ -26,7 +26,7 @@ def active_offers():
 
 def shop_products():
     return [dict(p) for p in get_db().execute(
-        "SELECT id, code, name, category, price, stock, low_stock_level, gst_rate FROM products "
+        "SELECT id, code, name, category, price, stock, low_stock_level FROM products "
         "WHERE shop_id = ? AND active = 1 ORDER BY name COLLATE NOCASE",
         (g.shop["id"],)).fetchall()]
 

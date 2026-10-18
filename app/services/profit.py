@@ -1,14 +1,20 @@
 """Profit: what was earned on the items sold. Plain Python, read-only, one shop at a time.
 
-Only saved bills count (cancelled ones never do). Profit on an item is what it sold for minus
-what it cost. Two rules keep it honest:
+Only saved bills count (cancelled ones never do). Profit on an item is what it was charged
+after discounts, minus the GST on it, minus what it cost: a Rs 500 runner at 5% GST costing
+Rs 100 earns 500 - 25 - 100 = 375. Two rules keep it honest:
 
 * A whole-bill discount is shared out over the items in proportion to their amounts, so the
   profit is what the shop really earned. Shipping & handling and the rupee round-off are left out.
+* The GST is the percentage copied onto the bill line when it was made (older bills have none,
+  so 0), worked out exactly as on the printed bill (see gst.py).
 * The cost is the one copied onto the bill when it was made. Older bills have none copied, so
   the product's cost price today is used. Items with no cost price anywhere can't have a profit
   worked out; they are listed, and counted apart, rather than guessed at.
 """
+
+
+from .gst import breakdown
 
 
 def share(amount, part, whole):
@@ -21,7 +27,7 @@ def share(amount, part, whole):
 def profit_figures(db, shop_id, start="", end=""):
     """Per product and overall profit for bills dated start..end ('YYYY-MM-DD', blank = no limit)."""
     sql = ("SELECT l.bill_id, l.product_id, l.name, l.code, l.quantity, l.line_amount, "
-           "CASE WHEN l.cost > 0 THEN l.cost ELSE COALESCE(p.cost_price, 0) END AS unit_cost, "
+           "l.gst_rate, CASE WHEN l.cost > 0 THEN l.cost ELSE COALESCE(p.cost_price, 0) END AS unit_cost, "
            "b.total, b.shipping, b.round_off "
            "FROM bill_lines l JOIN bills b ON b.id = l.bill_id "
            "LEFT JOIN products p ON p.id = l.product_id "
@@ -39,11 +45,26 @@ def profit_figures(db, shop_id, start="", end=""):
     for l in lines:
         subtotal[l["bill_id"]] = subtotal.get(l["bill_id"], 0) + l["line_amount"]
 
+    # What each line was charged and the GST in it. A bill with no GST keeps the original sharing
+    # of the whole-bill discount, so its profit is exactly what it was before GST existed.
+    per_bill = {}
+    for l in lines:
+        per_bill.setdefault(l["bill_id"], []).append(l)
+    charged = {}                                # id of the line's position -> (net, gst)
+    for b, rows_ in per_bill.items():
+        after_whole = rows_[0]["total"] - rows_[0]["shipping"] - rows_[0]["round_off"]
+        if any((l["gst_rate"] or 0) > 0 for l in rows_):
+            per_line, _ = breakdown(rows_, subtotal[b] - after_whole)
+            for l, g in zip(rows_, per_line):
+                charged[id(l)] = (g["net"], g["gst"])
+        else:
+            for l in rows_:
+                charged[id(l)] = (share(l["line_amount"], after_whole, subtotal[b]), 0)
+
     sold = {}                                   # product id -> figures from its sales
     for l in lines:
-        b = l["bill_id"]
-        after_whole = l["total"] - l["shipping"] - l["round_off"]
-        earned = share(l["line_amount"], after_whole, subtotal[b])
+        net, gst = charged[id(l)]
+        earned = net - gst
         s = sold.setdefault(l["product_id"], {"qty": 0, "revenue": 0, "cost": 0,
                                               "unknown_revenue": 0, "name": l["name"],
                                               "code": l["code"]})

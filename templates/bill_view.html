@@ -147,7 +147,7 @@
       <tr>
         <td>{{ loop.index }}</td>
         <td class="left">{% if l.code %}{{ l.code }} · {% endif %}{{ l.name }}{% if l.line_discount_pct %} ({{ "%g" | format(l.line_discount_pct) }}% off){% endif %}
-          {% if g_.rate > 0 %}<div class="gst-note">incl. GST {{ "%g" | format(g_.rate) }}%: Rs {{ '%.2f' | format(g_.gst / 100) }}</div>{% endif %}</td>
+          {% if g_.rate > 0 %}<div class="gst-note">GST {{ "%g" | format(g_.rate) }}%: Rs {{ '%.2f' | format(g_.gst / 100) }}</div>{% endif %}</td>
         <td>{{ l.quantity }}</td>
         <td>{{ l.rate | rupees }}</td>
         <td>{{ l.line_amount | rupees }}</td>
@@ -163,8 +163,8 @@
         {% if bill.round_off %}<tr><td colspan="4">Round off</td><td>{{ '%+.2f' | format(bill.round_off / 100) }}</td></tr>{% endif %}
         <tr class="grand"><td colspan="4">Total</td><td>{{ bill.total | rupees }}</td></tr>
         {% if gst.show %}
-        <tr><td colspan="4">GST included (subtotal)</td><td>{{ gst.gst | rupees }}</td></tr>
-        <tr><td colspan="4">Taxable value</td><td>{{ gst.taxable | rupees }}</td></tr>
+        <tr><td colspan="4">Total GST</td><td>{{ gst.gst | rupees }}</td></tr>
+        <tr><td colspan="4">Amount excluding GST</td><td>{{ gst.excl | rupees }}</td></tr>
         {% if gst.by_rate | length > 1 %}<tr><td colspan="5" class="gst-rates">{% for rate, amount in gst.by_rate %}GST {{ "%g" | format(rate) }}%: Rs {{ '%.2f' | format(amount / 100) }}{{ "   " if not loop.last }}{% endfor %}</td></tr>{% endif %}
         {% endif %}
         {% if bill.due_amount and bill.status == 'Saved' %}<tr><td colspan="4">Payment due{% if bill.due_date %} ({{ bill.due_date | fdate }}){% endif %}</td><td>{{ bill.due_amount | rupees }}</td></tr>{% endif %}
