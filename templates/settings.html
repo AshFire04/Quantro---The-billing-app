@@ -327,6 +327,23 @@
       </section>
     </div>
 
+    <section id="wipe" class="sd-card" aria-labelledby="wipe-h">
+      <div class="sd-head">
+        <div>
+          <h2 id="wipe-h">Delete all data</h2>
+          <p>Deletes every product, bill and customer, and starts bill numbers again from 1. Your login, shop profile, offers and lists stay. A backup copy of the database is saved first.</p>
+        </div>
+      </div>
+      <form method="post" action="{{ url_for('settings.wipe_data') }}" class="sd-row"
+            onsubmit="return confirm('This permanently deletes all products, bills and customers. Continue?')">
+        <label class="sd-field" style="flex:1 1 220px">
+          <span>Type DELETE to confirm</span>
+          <input type="text" name="confirm" autocomplete="off" required>
+        </label>
+        <button type="submit" class="sd-btn-danger">Delete all data</button>
+      </form>
+    </section>
+
   </div>
 
   <aside class="sd-preview" aria-label="Bill preview">

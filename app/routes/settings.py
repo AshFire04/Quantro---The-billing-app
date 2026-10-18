@@ -6,7 +6,7 @@ from flask import (Blueprint, abort, current_app, flash, g, redirect, render_tem
                    request, send_from_directory, url_for)
 
 from ..auth import login_required
-from ..db import get_db
+from ..db import backup_database, get_db
 from ..services import choices
 from ..services.billing import BillError, parse_percent
 from ..services.money import paise_to_input, rupees_to_paise
@@ -323,6 +323,28 @@ def delete_qr(qr_id):
         db.execute("DELETE FROM shop_qr_codes WHERE id = ?", (qr_id,))
     delete_image(qr["filename"])
     return redirect(url_for("settings.index"))
+
+
+@bp.route("/settings/wipe", methods=("POST",))
+@login_required
+def wipe_data():
+    """Clears products, bills and customers. The login, shop profile, offers and lists stay."""
+    if request.form.get("confirm", "").strip().upper() != "DELETE":
+        flash("Nothing was deleted. Type DELETE in the box to confirm.")
+        return redirect(url_for("settings.index") + "#wipe")
+    db = get_db()
+    backup_database(db, "before-wipe")            # a safety copy, if there were any bills
+    shop_id = g.shop["id"]
+    with db:
+        db.execute("DELETE FROM payments WHERE bill_id IN (SELECT id FROM bills WHERE shop_id = ?)", (shop_id,))
+        db.execute("DELETE FROM bill_lines WHERE bill_id IN (SELECT id FROM bills WHERE shop_id = ?)", (shop_id,))
+        db.execute("DELETE FROM bills WHERE shop_id = ?", (shop_id,))
+        db.execute("DELETE FROM customers WHERE shop_id = ?", (shop_id,))
+        db.execute("DELETE FROM products WHERE shop_id = ?", (shop_id,))
+        db.execute("DELETE FROM undo_actions WHERE shop_id = ?", (shop_id,))
+        db.execute("UPDATE shops SET next_invoice_number = 1 WHERE id = ?", (shop_id,))
+    flash("All products, bills and customers were deleted.", "ok")
+    return redirect(url_for("settings.index") + "#wipe")
 
 
 @bp.route("/uploads/<filename>")
