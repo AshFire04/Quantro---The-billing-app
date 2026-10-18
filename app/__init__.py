@@ -39,6 +39,19 @@ def create_app(test_config=None):
     app.jinja_env.filters["rupees"] = format_rupees
     app.jinja_env.filters["fdate"] = format_date
 
+    @app.context_processor
+    def undo_banner():
+        """After "Yes, same person" the page is opened with ?undo=<token>: show Undo for 30 seconds."""
+        from flask import g, request
+        token = request.args.get("undo", "")
+        if token and getattr(g, "shop", None):
+            from .db import get_db
+            from .services.customers import undo_left
+            left = undo_left(get_db(), g.shop["id"], token)
+            if left:
+                return {"undo_left": left, "undo_token": token}
+        return {}
+
     @app.route("/")
     def index():
         return redirect(url_for("home.index"))

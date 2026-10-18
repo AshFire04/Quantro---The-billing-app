@@ -80,6 +80,13 @@ CREATE TABLE IF NOT EXISTS customers (
     customer_type TEXT NOT NULL DEFAULT 'Retail',
     legacy INTEGER NOT NULL DEFAULT 0       -- 1 = a customer with no phone from before the upgrade
 );
+CREATE TABLE IF NOT EXISTS undo_actions (  -- "Combined. Undo": kept for a short while
+    token TEXT PRIMARY KEY,
+    shop_id INTEGER NOT NULL REFERENCES shops(id),
+    created REAL NOT NULL,                 -- seconds since 1970; Undo works for 30 seconds
+    payload TEXT NOT NULL,                 -- what to put back, as JSON
+    used INTEGER NOT NULL DEFAULT 0
+);
 CREATE TABLE IF NOT EXISTS order_sources (   -- the shop's "Order came through" choices
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     shop_id INTEGER NOT NULL REFERENCES shops(id),

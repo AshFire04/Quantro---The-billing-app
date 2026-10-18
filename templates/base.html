@@ -25,6 +25,23 @@
   </header>
   {% endif %}
   <main class="{% block main_class %}page{% endblock %}">
+    {% if undo_left %}
+    <div class="flash ok" id="undo-banner" data-left="{{ undo_left }}">
+      Combined.
+      <form method="post" action="{{ url_for('customers.undo', token=undo_token) }}" style="display:inline">
+        <button type="submit" class="link-button">Undo</button>
+      </form>
+      <span id="undo-count" class="muted"></span>
+    </div>
+    <script>
+      (function () {
+        const bar = document.getElementById("undo-banner"), count = document.getElementById("undo-count");
+        let left = Number(bar.dataset.left);
+        const tick = () => { count.textContent = "(" + left + "s)"; if (left-- <= 0) bar.remove(); else setTimeout(tick, 1000); };
+        tick();
+      })();
+    </script>
+    {% endif %}
     {% for category, message in get_flashed_messages(with_categories=true) %}
       <div class="flash {{ 'ok' if category == 'ok' }}">{{ message }}</div>
     {% endfor %}

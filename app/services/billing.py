@@ -383,35 +383,43 @@ def receive_due(db, shop_id, bill_id, mode, other=""):
         db.execute("UPDATE bills SET due_amount = 0, due_date = '' WHERE id = ?", (bill_id,))
 
 
-def update_bill_customer(db, shop_id, bill_id, name, phone, location, place, customer_type):
-    """Correct the customer details printed on one saved bill. Only this bill changes.
+def prepare_bill_customer(db, shop_id, bill_id, name, phone, location, place, customer_type):
+    """Check the "Edit customer" form for one bill, without saving anything.
 
-    The bill keeps its number, items, stock, payments, total and its link to a customer record;
-    no other bill and no customer record is touched. Returns the customer the new phone number
-    belongs to when that is somebody other than the bill's own customer (so the page can offer
-    to move the bill to them), otherwise None.
+    Returns (clean values, owner), where owner is the customer the new phone number belongs to
+    when that is somebody other than the bill's own customer, otherwise None.
     """
     from .customers import find_by_phone, normalize_phone
-    name, location, place = name.strip(), location.strip(), place.strip()
+    name, location, place = (name or "").strip(), (location or "").strip(), (place or "").strip()
     digits, error = normalize_phone(phone)
     if error:
         raise BillError(error)
     if customer_type not in CUSTOMER_TYPES:
         raise BillError("Please choose Retail or B2B")
-    bill = db.execute("SELECT customer_id FROM bills WHERE id = ? AND shop_id = ?",
-                      (bill_id, shop_id)).fetchone()
+    bill = db.execute("SELECT * FROM bills WHERE id = ? AND shop_id = ?", (bill_id, shop_id)).fetchone()
     if bill is None:
         raise BillError("That bill wasn't found")
     if not name:
         if bill["customer_id"]:
             raise BillError("Please enter the customer's name")
         name = "Walk-in customer"
+    clean = {"customer_name": name, "customer_phone": digits, "customer_location": location,
+             "place_of_sale": place, "customer_type": customer_type}
+    owner = find_by_phone(db, shop_id, digits)
+    return clean, (owner if owner is not None and owner["id"] != bill["customer_id"] else None)
+
+
+def save_bill_customer(db, shop_id, bill_id, clean):
+    """Write the checked "Edit customer" details onto this one bill. Returns what it said before."""
+    before = db.execute("SELECT id, customer_name, customer_phone, customer_location, "
+                        "place_of_sale, customer_type FROM bills WHERE id = ? AND shop_id = ?",
+                        (bill_id, shop_id)).fetchone()
     try:
         with db:
             db.execute("UPDATE bills SET customer_name = ?, customer_phone = ?, "
                        "customer_location = ?, place_of_sale = ?, customer_type = ? WHERE id = ?",
-                       (name, digits, location, place, customer_type, bill_id))
+                       (clean["customer_name"], clean["customer_phone"], clean["customer_location"],
+                        clean["place_of_sale"], clean["customer_type"], bill_id))
     except Exception:
         raise BillError("Couldn't save the changes; nothing was changed")
-    owner = find_by_phone(db, shop_id, digits)
-    return owner if owner is not None and owner["id"] != bill["customer_id"] else None
+    return dict(before)

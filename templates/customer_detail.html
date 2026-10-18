@@ -12,20 +12,11 @@
   {% if c.legacy and not c.phone %}· <strong>No phone, older bill</strong>{% endif %}
 </p>
 
-{% if taken %}
-<div class="flash">
-  The number {{ taken.phone }} already belongs to <strong>{{ taken.name }}</strong>. Nothing was saved.
-  If they are the same person, you can merge this customer into them.
-  <form method="get" action="{{ url_for('customers.merge', customer_id=c.id) }}" style="display:inline">
-    <input type="hidden" name="into" value="{{ taken.id }}">
-    <button class="btn" type="submit">Merge customers</button>
-  </form>
-</div>
-{% endif %}
+
 
 <section class="card settings-card">
   <h2>Customer record</h2>
-  <p class="muted">Changes here apply to <strong>future bills</strong>. Bills already made keep the name, phone and location that were printed on them.</p>
+  <p class="muted">Changes here apply to <strong>future bills</strong>. Bills already made keep the name, phone and location that were printed on them. If you change the number to one that already belongs to another customer, you will be asked whether it is the same person.</p>
   <form method="post" class="form">
     <div class="form-cols">
       <div>
@@ -56,7 +47,7 @@
   {% if bills %}
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Bill</th><th>Date</th><th>Printed name</th><th>Printed phone</th><th class="num">Amount</th><th>Status</th><th></th></tr></thead>
+      <thead><tr><th>Bill</th><th>Date</th><th>Printed name</th><th>Printed phone</th><th class="num">Amount</th><th>Status</th></tr></thead>
       <tbody>
       {% for b in bills %}
         {% set label, kind = bill_status(b) %}
@@ -67,7 +58,6 @@
           <td class="mono">{{ b.customer_phone }}</td>
           <td class="num mono">{{ b.total | rupees }}</td>
           <td><span class="badge status-{{ kind }}">{{ label }}</span></td>
-          <td><a href="{{ url_for('bills.edit_customer', bill_id=b.id) }}#move">Move bill to another customer</a></td>
         </tr>
       {% endfor %}
       </tbody>
@@ -78,26 +68,13 @@
   {% endif %}
 </section>
 
+{% if not bills %}
 <section class="card settings-card">
-  <h2>Merge customers</h2>
-  <p class="muted">If this is the same person as another customer, merge them. All of this customer's bills move to the one you pick, and this record is removed. You will see what happens before it does.</p>
-  {% if others %}
-  <form method="get" action="{{ url_for('customers.merge', customer_id=c.id) }}" class="form inline-form">
-    <label>Merge {{ c.name }} into
-      <select name="into" required>
-        <option value="">Choose a customer…</option>
-        {% for o in others %}<option value="{{ o.id }}">{{ o.name }}{% if o.phone %} · {{ o.phone }}{% elif o.legacy %} · No phone, older bill{% else %} · No phone{% endif %} · {{ o.bill_count }} bill{{ '' if o.bill_count == 1 else 's' }}</option>{% endfor %}
-      </select>
-    </label>
-    <button class="btn" type="submit">Merge customers…</button>
-  </form>
-  {% else %}
-  <p class="muted">There is no other customer to merge with.</p>
-  {% endif %}
-  {% if not bills %}
+  <h2>Remove this customer</h2>
+  <p class="muted">This customer has no bills, so it can be removed.</p>
   <form method="post" action="{{ url_for('customers.delete', customer_id=c.id) }}" onsubmit="return confirm('Remove this customer?')">
-    <button class="btn danger" type="submit">Remove this customer (no bills)</button>
+    <button class="btn danger" type="submit">Remove this customer</button>
   </form>
-  {% endif %}
 </section>
+{% endif %}
 {% endblock %}

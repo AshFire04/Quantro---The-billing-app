@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Same person?{% endblock %}
+{% block main_class %}page medium{% endblock %}
+{% block content %}
+<h1>Is this the same person?</h1>
+<div class="card">
+  <p><strong>This number already belongs to {{ owner_text }}. Is this the same person?</strong></p>
+  <p class="muted"><strong>If you tap Yes:</strong></p>
+  <ul>
+    {% for line in lines %}<li>{{ line }}</li>{% endfor %}
+    <li>{{ owner.name }} keeps their own details; a blank location is filled in from the other record.</li>
+    <li>Bills already printed do not change, only whose they are.</li>
+    <li>You can undo it for 30 seconds afterwards.</li>
+  </ul>
+  <p class="muted"><strong>If you tap No,</strong> nothing is changed and you go back to the form to change the number.</p>
+  <form method="post" action="{{ form_action }}" class="form">
+    {% for key, value in fields.items() %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endfor %}
+    <button class="btn primary" type="submit" name="action" value="yes">Yes, same person</button>
+    <button class="btn" type="submit" name="action" value="no">No, change the number</button>
+  </form>
+</div>
+{% endblock %}

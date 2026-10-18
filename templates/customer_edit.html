@@ -38,47 +38,4 @@
   <button class="btn primary" type="submit">Save customer details</button>
   <a class="btn" href="{{ url_for('bills.view', bill_id=bill.id) }}">Cancel</a>
 </form>
-
-<section class="card settings-card" id="move">
-  <h2>Move bill to another customer</h2>
-  <p class="muted">
-    {% if current %}This bill belongs to <strong><a href="{{ url_for('customers.detail', customer_id=current.id) }}">{{ current.name }}</a></strong>{% if current.phone %} ({{ current.phone }}){% endif %}.
-    {% else %}This bill is a walk-in, so it is not linked to a customer.{% endif %}
-    Moving it changes whose bills it counts under. What the bill printed does not change.
-  </p>
-  <form method="post" action="{{ url_for('bills.move', bill_id=bill.id) }}" class="form" id="move-form">
-    <label>Find the customer by name or phone
-      <input id="move-search" autocomplete="off" placeholder="Start typing…">
-    </label>
-    <div id="move-results" class="pick-list"></div>
-    <input type="hidden" name="customer_id" id="move-id">
-    <p id="move-chosen" class="muted" hidden></p>
-    <button class="btn" type="submit" id="move-go" disabled>Move bill</button>
-  </form>
-</section>
-
-<script>
-  const search = document.getElementById("move-search"), results = document.getElementById("move-results");
-  let timer = null;
-  async function showMatches() {
-    const data = await (await fetch("/customers/search?q=" + encodeURIComponent(search.value))).json();
-    results.replaceChildren(...data.customers.map(c => {
-      const b = document.createElement("button");
-      b.type = "button"; b.className = "pick";
-      b.textContent = `${c.name} · ${c.phone || (c.legacy ? "No phone, older bill" : "No phone")}` +
-        `${c.location ? " · " + c.location : ""}${c.last_bill ? " · last bill " + c.last_bill : ""}`;
-      b.onclick = () => {
-        document.getElementById("move-id").value = c.id;
-        const chosen = document.getElementById("move-chosen");
-        chosen.textContent = "Move this bill to " + c.name + (c.phone ? " (" + c.phone + ")" : "") + ".";
-        chosen.hidden = false;
-        document.getElementById("move-go").disabled = false;
-        results.replaceChildren();
-      };
-      return b;
-    }));
-  }
-  search.oninput = () => { clearTimeout(timer); timer = setTimeout(showMatches, 250); };
-  search.onfocus = showMatches;
-</script>
 {% endblock %}

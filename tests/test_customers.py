@@ -255,102 +255,6 @@ def test_editing_the_customer_record_is_for_future_bills_only(client, app):
     assert len(rows(client)) == 1
 
 
-def test_changing_a_customers_phone_to_an_existing_one_warns_and_offers_a_merge(client, app):
-    setup(client)
-    post_bill(client, "Asha", "9876543210")
-    post_bill(client, "Ravi", "9123456780")
-    asha = client.get("/customers/lookup?phone=9876543210").get_json()["id"]
-    ravi = client.get("/customers/lookup?phone=9123456780").get_json()["id"]
-    p = page_of(client.post(f"/customers/{asha}", data={
-        "name": "Asha", "phone": "9123456780", "customer_type": "Retail"}))
-    assert "already belongs to" in p and "Ravi" in p and "Merge customers" in p
-    assert f"/customers/{asha}/merge" in p and f'value="{ravi}"' in p
-    assert database(app).execute("SELECT phone FROM customers WHERE id = ?", (asha,)).fetchone()[0] == "9876543210"
-
-
-def test_merging_moves_the_bills_and_copies_a_missing_phone(client, app):
-    setup(client)
-    post_bill(client, "Asha")                                  # no phone
-    post_bill(client, "Asha Rao", "9876543210")
-    post_bill(client, "Asha Rao", "9876543210")
-    nophone = next(c for c in client.get("/customers/search?q=Asha").get_json()["customers"]
-                   if not c["phone"])["id"]
-    target = client.get("/customers/lookup?phone=9876543210").get_json()["id"]
-    # the customer with a phone is merged into the one with none, so the number is copied across
-    check = page(client, f"/customers/{target}/merge?into={nophone}")
-    assert "Yes, merge them" in check and "copied across" in check and "9876543210" in check
-    assert len(rows(client)) == 2                              # looking changes nothing
-    res = client.post(f"/customers/{target}/merge", data={"into": nophone}, follow_redirects=True)
-    assert "2 bills moved" in page_of(res)
-    db = database(app)
-    survivors = db.execute("SELECT * FROM customers").fetchall()
-    assert len(survivors) == 1 and survivors[0]["id"] == nophone
-    assert survivors[0]["phone"] == "9876543210" and survivors[0]["name"] == "Asha"   # target's name kept
-    assert db.execute("SELECT COUNT(*) FROM bills WHERE customer_id = ?", (nophone,)).fetchone()[0] == 3
-    assert bill(app, 2)["customer_name"] == "Asha Rao"         # what was printed is unchanged
-
-
-def test_merge_keeps_the_targets_own_phone_and_checks_its_input(client):
-    setup(client)
-    post_bill(client, "Asha", "9876543210")
-    post_bill(client, "Asha K", "9123456780")
-    a = client.get("/customers/lookup?phone=9876543210").get_json()["id"]
-    b = client.get("/customers/lookup?phone=9123456780").get_json()["id"]
-    assert "no longer be kept" in page(client, f"/customers/{b}/merge?into={a}")
-    client.post(f"/customers/{b}/merge", data={"into": a})
-    assert client.get("/customers/lookup?phone=9123456780").get_json()["found"] is False
-    assert client.get("/customers/lookup?phone=9876543210").get_json()["bill_count"] == 2
-    # merging with yourself does nothing
-    assert client.post(f"/customers/{a}/merge", data={"into": a}, follow_redirects=True).status_code == 200
-    assert len(rows(client)) == 1
-
-
-def test_moving_a_bill_changes_who_it_counts_for_not_what_it_printed(client, app):
-    setup(client)
-    post_bill(client, "Asha", "9876543210")
-    post_bill(client, "Ravi", "9123456780")
-    ravi = client.get("/customers/lookup?phone=9123456780").get_json()["id"]
-    assert "Move bill to another customer" in page(client, "/bills/1/customer")
-    res = client.post("/bills/1/move", data={"customer_id": ravi}, follow_redirects=True)
-    assert "Bill moved" in page_of(res)
-    one = bill(app, 1)
-    assert one["customer_id"] == ravi and one["customer_name"] == "Asha"
-    assert client.get("/customers/lookup?phone=9123456780").get_json()["bill_count"] == 2
-    assert client.get("/customers/lookup?phone=9876543210").get_json()["bill_count"] == 0
-    assert "Move bill to another customer" in page(client, f"/customers/{ravi}")
-    bad = client.post("/bills/1/move", data={"customer_id": 999}, follow_redirects=True)
-    assert "wasn't found" in page_of(bad)
-
-
-def test_editing_a_bills_phone_to_another_customers_offers_to_move_it(client, app):
-    setup(client)
-    post_bill(client, "Asha", "9876543210")
-    post_bill(client, "Ravi", "9123456780")
-    res = client.post("/bills/1/customer", data={
-        "name": "Asha", "phone": "9123456780", "place": "Karnataka", "customer_type": "Retail"},
-        follow_redirects=True)
-    p = page_of(res)
-    assert "Move this bill too?" in p and "Move bill to Ravi" in p
-    assert bill(app, 1)["customer_phone"] == "9123456780"            # that bill was changed
-    ravi = client.get("/customers/lookup?phone=9123456780").get_json()["id"]
-    assert bill(app, 1)["customer_id"] != ravi                       # but not moved until you say so
-    client.post("/bills/1/move", data={"customer_id": ravi})
-    assert bill(app, 1)["customer_id"] == ravi
-
-
-def test_a_customer_with_no_bills_can_be_removed_but_one_with_bills_cannot(client):
-    setup(client)
-    post_bill(client, "Asha", "9876543210")
-    post_bill(client, "Ravi", "9123456780")
-    asha = client.get("/customers/lookup?phone=9876543210").get_json()["id"]
-    ravi = client.get("/customers/lookup?phone=9123456780").get_json()["id"]
-    p = page_of(client.post(f"/customers/{asha}/delete", follow_redirects=True))
-    assert "has bills" in p and len(rows(client)) == 2
-    client.post("/bills/1/move", data={"customer_id": ravi})         # Asha now has none
-    client.post(f"/customers/{asha}/delete")
-    assert rows(client) == ["Ravi"]
-
-
 # ---- Edit customer on a bill ----
 
 def test_bill_page_buttons(client):
@@ -413,7 +317,6 @@ def test_edit_customer_works_on_cancelled_and_walk_in_bills_and_stays_in_the_sho
     create(client, login="two@example.com", shop="Other Shop")
     assert client.get("/bills/1/customer").status_code == 404
     assert client.post("/bills/1/customer", data={"name": "Hacker"}).status_code == 404
-    assert client.post("/bills/1/move", data={"customer_id": 1}).status_code == 404
 
 
 # ---- the upgrade of an existing database ----
@@ -492,3 +395,28 @@ def test_the_upgrade_shows_old_customers_correctly_on_the_page(client, app):
     assert p.count("No phone, older bill") == 2
     post_bill(client, "New person")                                   # a new no-phone customer
     assert page(client, "/customers").count("No phone, older bill") == 2
+
+
+def test_a_customer_with_no_bills_can_be_removed_but_one_with_bills_cannot(client, app):
+    setup(client)
+    post_bill(client, "Asha", "9876543210")
+    db = database(app)
+    db.execute("INSERT INTO customers (shop_id, name, phone) VALUES (1, 'Nobody Yet', '9123456780')")
+    db.commit()
+    asha = client.get("/customers/lookup?phone=9876543210").get_json()["id"]
+    nobody = client.get("/customers/lookup?phone=9123456780").get_json()["id"]
+    assert "has bills" in page_of(client.post(f"/customers/{asha}/delete", follow_redirects=True))
+    assert len(rows(client, "/customers?date_from=&date_to=")) == 2
+    client.post(f"/customers/{nobody}/delete")
+    assert rows(client) == ["Asha"]
+
+
+def test_there_are_no_manual_merge_or_move_tools(client):
+    setup(client)
+    post_bill(client, "Asha", "9876543210")
+    post_bill(client, "Ravi", "9123456780")
+    for url in ("/customers/1", "/customers/2", "/bills/1/customer", "/bills/1", "/customers"):
+        p = page(client, url)
+        assert "Merge" not in p and "Move bill" not in p and "merge" not in p.lower().replace("emerge", "")
+    assert client.get("/customers/1/merge?into=2").status_code == 404
+    assert client.post("/bills/1/move", data={"customer_id": 2}).status_code == 404

@@ -167,40 +167,133 @@ def update(db, shop_id, customer_id, name, phone_text, location, customer_type):
                     1 if customer["legacy"] and not digits else 0, customer["id"]))
 
 
-def merge(db, shop_id, source_id, target_id):
-    """Join two customers: every bill of `source` moves to `target`, and `source` is removed.
+UNDO_SECONDS = 30
 
-    The target keeps its own details, except that if it has no phone and the source has one,
-    the number is copied over. Printed bills are not touched. Returns what happened.
+
+def stats(db, shop_id, customer_id):
+    """Saved-bill count, total billed and last bill date (ISO) of one customer."""
+    row = db.execute("SELECT COUNT(*) AS n, COALESCE(SUM(total), 0) AS spent, MAX(created_at) AS last "
+                     "FROM bills WHERE customer_id = ? AND shop_id = ? AND status = 'Saved'",
+                     (customer_id, shop_id)).fetchone()
+    return {"bill_count": row["n"], "spent": row["spent"], "last_bill": row["last"] or ""}
+
+
+def bill_ids_of(db, customer_id):
+    """Every bill linked to a customer, cancelled ones too."""
+    return [r[0] for r in db.execute("SELECT id FROM bills WHERE customer_id = ? ORDER BY id",
+                                     (customer_id,))]
+
+
+def plan_for_bill(db, shop_id, bill, owner):
+    """What "Yes, same person" would do when a bill's phone is changed to `owner`'s number.
+
+    * the bill is a walk-in: only this bill is linked to the owner;
+    * its customer has no phone, or this is their only bill: all their bills move to the owner
+      and the now-empty customer is removed;
+    * its customer has their own phone and other bills: only this bill moves, the customer stays.
+    Returns {"mode": "link" | "all" | "one", "current": row or None, "bill_ids": [...]}.
     """
-    source, target = get(db, shop_id, source_id), get(db, shop_id, target_id)
-    if source is None or target is None:
-        raise CustomerError("That customer wasn't found")
-    if source["id"] == target["id"]:
-        raise CustomerError("Pick a different customer to merge into")
-    with db:
-        moved = db.execute("UPDATE bills SET customer_id = ? WHERE customer_id = ?",
-                           (target["id"], source["id"])).rowcount
-        db.execute("DELETE FROM customers WHERE id = ?", (source["id"],))
-        copied = bool(source["phone"] and not target["phone"])
-        if copied:                       # after the delete, so the number is never in two rows
-            db.execute("UPDATE customers SET phone = ?, legacy = 0 WHERE id = ?",
-                       (source["phone"], target["id"]))
-    return {"moved": moved, "copied_phone": copied,
-            "dropped_phone": source["phone"] if source["phone"] and target["phone"]
-            and source["phone"] != target["phone"] else ""}
+    current = get(db, shop_id, bill["customer_id"]) if bill["customer_id"] else None
+    if current is None:
+        return {"mode": "link", "current": None, "bill_ids": [bill["id"]]}
+    mine = bill_ids_of(db, current["id"])
+    if not current["phone"] or mine == [bill["id"]]:
+        return {"mode": "all", "current": current, "bill_ids": mine}
+    return {"mode": "one", "current": current, "bill_ids": [bill["id"]]}
 
 
-def move_bill(db, shop_id, bill_id, customer_id):
-    """Link one bill to another customer. What the bill printed stays as it was."""
-    bill = db.execute("SELECT id FROM bills WHERE id = ? AND shop_id = ?",
-                      (bill_id, shop_id)).fetchone()
-    if bill is None:
-        raise CustomerError("That bill wasn't found")
-    if get(db, shop_id, customer_id) is None:
+def plan_for_customer(db, shop_id, customer, owner):
+    """"Yes, same person" on Customer Details: all of this customer's bills move, and they go."""
+    return {"mode": "all", "current": customer, "bill_ids": bill_ids_of(db, customer["id"])}
+
+
+def combine(db, shop_id, owner_id, plan, return_to, bill_before=None):
+    """Do what a plan says and remember how to undo it. Returns the Undo token.
+
+    Only the link between a bill and its customer changes; what bills printed never does.
+    The customer who owns the phone keeps their own details, with a blank location filled in
+    from the other record. Call inside no other transaction.
+    """
+    import json
+    import secrets
+    import time
+    owner = get(db, shop_id, owner_id)
+    current = plan["current"]
+    if owner is None:
         raise CustomerError("That customer wasn't found")
+    marks = ",".join("?" * len(plan["bill_ids"])) or "NULL"
     with db:
-        db.execute("UPDATE bills SET customer_id = ? WHERE id = ?", (int(customer_id), bill_id))
+        previous = [[r["id"], r["customer_id"]] for r in db.execute(
+            f"SELECT id, customer_id FROM bills WHERE id IN ({marks}) AND shop_id = ?",
+            [*plan["bill_ids"], shop_id])]
+        db.execute(f"UPDATE bills SET customer_id = ? WHERE id IN ({marks}) AND shop_id = ?",
+                   [owner["id"], *plan["bill_ids"], shop_id])
+        if current is not None and not owner["location"] and current["location"]:
+            db.execute("UPDATE customers SET location = ? WHERE id = ?",
+                       (current["location"], owner["id"]))
+        removed = None
+        if plan["mode"] == "all" and current is not None:
+            removed = dict(current)
+            db.execute("DELETE FROM customers WHERE id = ?", (current["id"],))
+        token = secrets.token_urlsafe(16)
+        db.execute("DELETE FROM undo_actions WHERE created < ?", (time.time() - 86400,))
+        db.execute("INSERT INTO undo_actions (token, shop_id, created, payload) VALUES (?, ?, ?, ?)",
+                   (token, shop_id, time.time(), json.dumps({
+                       "owner_id": owner["id"], "owner_location": owner["location"],
+                       "previous_links": previous, "removed_customer": removed,
+                       "bill_before": bill_before, "return_to": return_to})))
+    return token
+
+
+def undo_left(db, shop_id, token):
+    """Whole seconds left to undo, or 0 if it is used up, too old or not this shop's."""
+    import time
+    row = db.execute("SELECT created, used FROM undo_actions WHERE token = ? AND shop_id = ?",
+                     (token or "", shop_id)).fetchone()
+    if row is None or row["used"]:
+        return 0
+    return max(0, int(UNDO_SECONDS - (time.time() - row["created"])))
+
+
+def undo(db, shop_id, token):
+    """Put back the links, the removed customer and the bill's printed details.
+
+    Returns the address to go back to, or None when the Undo is no longer available.
+    """
+    import json
+    if not undo_left(db, shop_id, token):
+        return None
+    row = db.execute("SELECT payload FROM undo_actions WHERE token = ?", (token,)).fetchone()
+    data = json.loads(row["payload"])
+    with db:
+        removed = data["removed_customer"]
+        if removed:
+            columns = list(removed)
+            try:
+                db.execute(f"INSERT INTO customers ({', '.join(columns)}) "
+                           f"VALUES ({', '.join('?' * len(columns))})", [removed[c] for c in columns])
+            except sqlite3_integrity_error():
+                removed["phone"] = ""       # somebody has taken the number meanwhile
+                db.execute(f"INSERT INTO customers ({', '.join(columns)}) "
+                           f"VALUES ({', '.join('?' * len(columns))})", [removed[c] for c in columns])
+        for bill_id, customer_id in data["previous_links"]:
+            db.execute("UPDATE bills SET customer_id = ? WHERE id = ? AND shop_id = ?",
+                       (customer_id, bill_id, shop_id))
+        db.execute("UPDATE customers SET location = ? WHERE id = ? AND shop_id = ?",
+                   (data["owner_location"], data["owner_id"], shop_id))
+        before = data["bill_before"]
+        if before:
+            db.execute("UPDATE bills SET customer_name = ?, customer_phone = ?, customer_location = ?, "
+                       "place_of_sale = ?, customer_type = ? WHERE id = ? AND shop_id = ?",
+                       (before["customer_name"], before["customer_phone"], before["customer_location"],
+                        before["place_of_sale"], before["customer_type"], before["id"], shop_id))
+        db.execute("UPDATE undo_actions SET used = 1 WHERE token = ?", (token,))
+    return data["return_to"]
+
+
+def sqlite3_integrity_error():
+    import sqlite3
+    return sqlite3.IntegrityError
 
 
 def delete_if_unused(db, shop_id, customer_id):

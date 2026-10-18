@@ -8,9 +8,10 @@ from ..db import get_db
 from ..services import choices
 from ..services import customers as people
 from ..services.billing import (BillError, CUSTOMER_TYPES, cancel_bill, receive_due,
-                                update_bill_customer)
+                                prepare_bill_customer, save_bill_customer)
 from ..services.states import PLACES
 from ..services.export import bills_workbook
+from ..services.money import format_date
 from ..services.period import date_range
 
 bp = Blueprint("bills", __name__)
@@ -128,10 +129,36 @@ def own_bill(bill_id):
     return bill
 
 
+def plain_plan_lines(plan, owner, current_label="this customer"):
+    """What "Yes, same person" will do, in words (used by the prompt on both pages)."""
+    n = len(plan["bill_ids"])
+    bills = f"{n} bill{'' if n == 1 else 's'}"
+    current = plan["current"]
+    if plan["mode"] == "link":
+        return [f"Move 1 bill: it will count under {owner['name']}."]
+    if plan["mode"] == "all":
+        return [f"Move {bills} of {current['name']} to {owner['name']}, and remove {current['name']} "
+                f"from Customer Details."]
+    return [f"Move 1 bill (only this one) to {owner['name']}. {current['name']} stays, with their "
+            f"other bills."]
+
+
+def owner_summary(owner):
+    s = people.stats(get_db(), g.shop["id"], owner["id"])
+    n = s["bill_count"]
+    last = format_date(s["last_bill"]) if s["last_bill"] else "none yet"
+    return f"{owner['name']} ({n} bill{'' if n == 1 else 's'}, last bill {last})"
+
+
 @bp.route("/bills/<int:bill_id>/customer", methods=("GET", "POST"))
 @login_required
 def edit_customer(bill_id):
-    """Fix the customer details printed on this one bill. No other bill is touched."""
+    """Fix the customer details printed on this one bill.
+
+    If the new phone number already belongs to another customer, ask whether it is the same
+    person; Yes combines them automatically (with Undo), No goes back to the form.
+    """
+    db = get_db()
     bill = own_bill(bill_id)
     values = {"name": bill["customer_name"], "phone": bill["customer_phone"],
               "location": bill["customer_location"],
@@ -142,51 +169,36 @@ def edit_customer(bill_id):
     if request.method == "POST":
         f = request.form
         values = {"name": f.get("name", ""), "phone": f.get("phone", ""),
-                  "location": f.get("location", ""),
-                  "customer_type": f.get("customer_type", ""),
+                  "location": f.get("location", ""), "customer_type": f.get("customer_type", ""),
                   "place": f.get("place", ""), "place_other": f.get("place_other", "")}
+        action = f.get("action", "")
         place = values["place_other"] if values["place"] == "Other" else values["place"]
         try:
             if values["place"] == "Other" and not place.strip():
                 raise BillError("Please type the state or country for 'Other'")
-            owner = update_bill_customer(get_db(), g.shop["id"], bill_id, values["name"],
-                                         values["phone"], values["location"], place,
-                                         values["customer_type"])
-            if owner is not None:
-                return redirect(url_for("bills.link_customer", bill_id=bill_id, to=owner["id"]))
-            flash("Customer details updated on this bill only.", "ok")
-            return redirect(url_for("bills.view", bill_id=bill_id))
-        except BillError as e:
+            clean, owner = prepare_bill_customer(db, g.shop["id"], bill_id, values["name"],
+                                                 values["phone"], values["location"], place,
+                                                 values["customer_type"])
+            if action != "no":
+                if owner is None:
+                    save_bill_customer(db, g.shop["id"], bill_id, clean)
+                    flash("Customer details updated on this bill only.", "ok")
+                    return redirect(url_for("bills.view", bill_id=bill_id))
+                plan = people.plan_for_bill(db, g.shop["id"], bill, owner)
+                if action != "yes":
+                    return render_template("customer_confirm.html", owner=owner,
+                                           owner_text=owner_summary(owner),
+                                           lines=plain_plan_lines(plan, owner),
+                                           form_action=url_for("bills.edit_customer", bill_id=bill_id),
+                                           fields=values, back_url=url_for("bills.view", bill_id=bill_id))
+                before = save_bill_customer(db, g.shop["id"], bill_id, clean)
+                back = url_for("bills.view", bill_id=bill_id)
+                token = people.combine(db, g.shop["id"], owner["id"], plan, back, bill_before=before)
+                return redirect(url_for("bills.view", bill_id=bill_id, undo=token))
+        except (BillError, people.CustomerError) as e:
             flash(str(e))
-    current = people.get(get_db(), g.shop["id"], bill["customer_id"]) if bill["customer_id"] else None
     return render_template("customer_edit.html", bill=bill, v=values, places=PLACES,
-                           customer_types=CUSTOMER_TYPES, current=current)
-
-
-@bp.route("/bills/<int:bill_id>/customer/link")
-@login_required
-def link_customer(bill_id):
-    """After a phone number was changed to one that belongs to another customer: offer to move."""
-    bill = own_bill(bill_id)
-    owner = people.get(get_db(), g.shop["id"], request.args.get("to", ""))
-    if owner is None or owner["id"] == bill["customer_id"]:
-        return redirect(url_for("bills.view", bill_id=bill_id))
-    current = people.get(get_db(), g.shop["id"], bill["customer_id"]) if bill["customer_id"] else None
-    return render_template("bill_link.html", bill=bill, owner=owner, current=current)
-
-
-@bp.route("/bills/<int:bill_id>/move", methods=("POST",))
-@login_required
-def move(bill_id):
-    """Link this bill to another customer. What the bill printed stays as it was."""
-    own_bill(bill_id)
-    try:
-        people.move_bill(get_db(), g.shop["id"], bill_id, request.form.get("customer_id", ""))
-        flash("Bill moved to the other customer. What it printed is unchanged.", "ok")
-    except people.CustomerError as e:
-        flash(str(e))
-        return redirect(url_for("bills.edit_customer", bill_id=bill_id))
-    return redirect(url_for("bills.view", bill_id=bill_id))
+                           customer_types=CUSTOMER_TYPES)
 
 
 @bp.route("/bills/<int:bill_id>/payment-received", methods=("POST",))
