@@ -18,7 +18,7 @@ def active_offers():
     """The shop's switched-on offers, in the shape the Billing screen needs."""
     return [{"id": o["id"], "name": o["name"], "pct": o["percentage"],
              "applies_to": o["applies_to"], "category": o["category"],
-             "min_amount": o["min_amount"], "exclude": o["exclude_category"]}
+             "min_amount": o["min_amount"], "exclude": [c for c in o["exclude_category"].split("|") if c]}
             for o in get_db().execute(
                 "SELECT * FROM offers WHERE shop_id = ? AND active = 1 ORDER BY id",
                 (g.shop["id"],)).fetchall()]

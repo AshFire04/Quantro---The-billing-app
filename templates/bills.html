@@ -53,19 +53,18 @@
   <div class="card table-wrap">
     <table class="compact">
       <thead>
-        <tr><th>Bill</th><th>Date</th><th>Customer</th><th>Place of sale</th><th class="num">Amount</th><th>Status</th>{% for c in columns %}<th class="num">{{ c }}</th>{% endfor %}<th class="num">Due</th></tr>
+        <tr><th>Bill</th><th>Date</th><th>Customer</th><th>Place of sale</th><th class="num">Amount</th><th>Status</th>{% for c in columns %}<th class="num">{{ c }}</th>{% endfor %}<th class="num">Due</th><th>Comment</th></tr>
       </thead>
       <tbody>
       {% for b in bills %}
         <tr>
           <td class="mono"><a href="{{ url_for('bills.view', bill_id=b.id) }}">{{ b.bill_label }}</a></td>
-          <td>{{ b.created_at | fdate }}</td>
+          <td class="nowrap">{{ b.created_at | sdate }}</td>
           <td>{{ b.customer_name }}</td>
           <td>{{ b.place_of_sale }}</td>
           <td class="num mono">{{ b.total | rupees }}</td>
           {% set label, kind = bill_status(b) %}
           <td><span class="badge status-{{ kind }}">{{ label }}</span>
-            {% if b.replaced_by_number %}<span class="muted">replaced by {{ b.replaced_by_number }}</span>{% endif %}
             {% if b.status == 'Draft' %}<div class="actions draft-actions">
             <a class="btn small" href="{{ url_for('billing.edit', bill_id=b.id) }}">Edit</a>
             <form method="post" action="{{ url_for('bills.delete_draft_bill', bill_id=b.id) }}"
@@ -78,6 +77,7 @@
           {% endfor %}
           {% set due = b.due_amount if b.status == 'Saved' else 0 %}
           <td class="num mono">{{ (due | rupees) if due else "-" }}</td>
+          <td class="nowrap muted">{% if b.status == 'Draft' %}Draft, stock not reduced{% elif b.replaced_by_number %}Replaced by {{ b.replaced_by_number }}{% elif b.status == 'Cancelled' %}Cancelled, no replacement{% elif b.replaces_number %}Replaces {{ b.replaces_number }}{% else %}-{% endif %}</td>
         </tr>
       {% endfor %}
       </tbody>

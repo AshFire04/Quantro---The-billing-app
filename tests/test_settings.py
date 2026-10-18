@@ -425,9 +425,17 @@ def test_an_all_items_offer_can_leave_one_category_out(offers_shop):
 
 def test_the_except_category_is_saved_from_the_form_for_all_items_offers_only(client, app):
     create(client)
-    add_offer(client, name="Festive", applies_to="bill", category="", exclude_category="Curtains")
+    add_offer(client, name="Festive", applies_to="bill", category="", exclude_category=["Curtains", "Rugs", "curtains"])
     add_offer(client, name="Trays", applies_to="category", category="Trays", exclude_category="Curtains")
     with app.app_context():
         rows = get_db().execute("SELECT name, exclude_category FROM offers ORDER BY id").fetchall()
-    assert [tuple(r) for r in rows] == [("Festive", "Curtains"), ("Trays", "")]
-    assert "except “Curtains”" in seen(client.get("/settings"))
+    assert [tuple(r) for r in rows] == [("Festive", "Curtains|Rugs"), ("Trays", "")]
+    assert "except “Curtains”, “Rugs”" in seen(client.get("/settings"))
+
+
+def test_an_offer_can_leave_out_several_categories(offers_shop):
+    offers_shop.execute("INSERT INTO offers (shop_id, name, percentage, applies_to, exclude_category) "
+                        "VALUES (1, 'Festive', 10, 'bill', 'Cushions|Trays')")
+    offers_shop.commit()
+    items = [{"product_id": 1, "quantity": 2}, {"product_id": 2, "quantity": 1}]
+    assert price(offers_shop, items, [1])["total"] == 120000      # both categories left alone: no discount

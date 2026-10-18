@@ -9,7 +9,6 @@
 {% if result %}
 <div class="card">
   <h2>{{ result.added }} product{{ '' if result.added == 1 else 's' }} added</h2>
-  {% if result.new_lists %}<p class="muted">Added to your lists in Shop Details: {{ result.new_lists | join(", ") }}.</p>{% endif %}
   {% if result.skipped %}
   <p>{{ result.skipped | length }} row{{ '' if result.skipped | length == 1 else 's' }} not imported:</p>
   <ul>
@@ -25,7 +24,7 @@
      Item Code/Bar Code, Category, Stock, Low-stock level, HSN/SAC number, Supplier, Cost price, GST rate.</p>
   <ul class="muted">
     <li>A product whose Item Code/Bar Code is already used is skipped, so nothing is overwritten.</li>
-    <li>A Category or Supplier that is not in your lists yet is added to them.</li>
+    <li>A Category or Supplier must already be in your lists in Shop Details, otherwise that row is skipped with an error.</li>
     <li>A blank Stock counts as 0, and a blank Low-stock level as 5.</li>
   </ul>
   <p><a href="{{ url_for('inventory.import_template') }}">Download a template</a></p>

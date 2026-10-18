@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Edit payment method{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Edit payment method · Bill {{ bill.bill_label }}</h1>
+</div>
+<div class="card">
+  <p class="muted">Only the payment method can be changed here. The amounts, items and total stay as they are.</p>
+  <form method="post">
+    {% for p in payments %}
+    {% set listed = p.mode in methods or p.mode == 'Other' %}
+    <p>
+      <b>{{ p.amount | rupees }}</b>
+      <select name="mode_{{ p.id }}" aria-label="Payment method" onchange="document.getElementById('o{{ p.id }}').hidden = this.value !== 'Other'">
+        {% if not listed %}<option selected>{{ p.mode }}</option>{% endif %}
+        {% for m in methods %}<option {{ 'selected' if m == p.mode }}>{{ m }}</option>{% endfor %}
+        <option>Other</option>
+      </select>
+      <input id="o{{ p.id }}" name="other_{{ p.id }}" class="other-input" placeholder="Type the payment method" hidden>
+    </p>
+    {% endfor %}
+    <button class="btn primary" type="submit">Save payment method</button>
+    <a class="btn" href="{{ url_for('bills.view', bill_id=bill.id) }}">Cancel</a>
+  </form>
+</div>
+{% endblock %}

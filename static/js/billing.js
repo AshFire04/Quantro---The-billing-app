@@ -132,10 +132,10 @@ function wholeHundredths(subtotal) {
 function skippedAmount(subtotal) {
   if (isTyped($("whole-discount").value)) return 0;           // typed by hand: applies to everything
   const offer = bestWholeOffer(subtotal);
-  const except = offer ? (offer.exclude || "").trim().toLowerCase() : "";
-  if (!except) return 0;
+  const except = offer ? (offer.exclude || []).map(c => c.trim().toLowerCase()) : [];
+  if (except.length === 0) return 0;
   return Object.keys(bill).reduce((sum, id) =>
-    sum + ((byId[id].category || "").trim().toLowerCase() === except ? lineAmount(id) : 0), 0);
+    sum + (except.includes((byId[id].category || "").trim().toLowerCase()) ? lineAmount(id) : 0), 0);
 }
 
 function computeTotals() {

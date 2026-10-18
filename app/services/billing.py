@@ -148,7 +148,7 @@ def load_offers(db, shop_id, offer_ids):
                        "pct": Decimal(str(offer["percentage"])),
                        "applies_to": offer["applies_to"],
                        "category": offer["category"].strip().lower(),
-                       "exclude": offer["exclude_category"].strip().lower(),
+                       "exclude": {c.strip().lower() for c in offer["exclude_category"].split("|") if c.strip()},
                        "min_amount": offer["min_amount"]})
     return offers
 
@@ -230,7 +230,7 @@ def price_details(db, shop_id, items, whole_discount_pct=None, shipping=0, offer
             applied[best["id"]] = best["name"]
             if best["exclude"]:
                 skipped = sum(line["line_amount"] for line, c in zip(lines, categories)
-                              if c == best["exclude"])
+                              if c in best["exclude"])
     exact = take_percent_off(subtotal - skipped, whole_discount_pct) + skipped + shipping
     total = (exact + 50) // 100 * 100               # rounded off to the nearest rupee, half up
     return {"lines": lines, "total": total, "round_off": total - exact,
@@ -478,6 +478,31 @@ def receive_due(db, shop_id, bill_id, mode, other=""):
                    (bill_id, mode, bill["due_amount"],
                     datetime.now().isoformat(timespec="seconds")))
         db.execute("UPDATE bills SET due_amount = 0, due_date = '' WHERE id = ?", (bill_id,))
+
+
+def change_payment_modes(db, shop_id, bill_id, picks):
+    """Change only the payment method of each payment on a bill; amounts never change.
+
+    picks: {payment id: (mode, text typed under Other)}. Every payment of the bill is needed.
+    """
+    modes = choices.with_other(db, shop_id, "method")
+    with db:
+        bill = db.execute("SELECT status FROM bills WHERE id = ? AND shop_id = ?",
+                          (bill_id, shop_id)).fetchone()
+        if bill is None:
+            raise BillError("That bill wasn't found")
+        if bill["status"] == "Draft":
+            raise BillError("This bill is still a draft, so it has no payments yet")
+        rows = db.execute("SELECT id FROM payments WHERE bill_id = ?", (bill_id,)).fetchall()
+        if not rows:
+            raise BillError("This bill has no payments to change")
+        new = {}
+        for r in rows:
+            mode, other = picks.get(r["id"], ("", ""))
+            new[r["id"]] = clean_choice(mode, other, modes, "payment method")
+        for payment_id, mode in new.items():
+            db.execute("UPDATE payments SET mode = ? WHERE id = ? AND bill_id = ?",
+                       (mode, payment_id, bill_id))
 
 
 def prepare_bill_customer(db, shop_id, bill_id, name, phone, location, place, customer_type):

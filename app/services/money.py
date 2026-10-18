@@ -32,6 +32,13 @@ def take_percent_off(paise, pct):
     hundredths = int(pct * 100)                     # 12.5% -> 1250
     return (paise * (10000 - hundredths) + 5000) // 10000
 
+def short_date(text):
+    """'2026-10-10T14:30:05' -> '10/10/26' (DD/MM/YY)."""
+    if not text:
+        return ""
+    return datetime.strptime(text[:10], "%Y-%m-%d").strftime("%d/%m/%y")
+
+
 def format_date(text):
     """'2026-10-10' or '2026-10-10T14:30:05' -> '10 Oct 2026' (no time). Empty stays empty."""
     if not text:

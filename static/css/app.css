@@ -262,4 +262,6 @@ table.compact .badge { padding: 2px 10px; }
   table.compact .btn { min-height: 32px; padding: 3px 14px; font-size: .95rem; }
 }
 .draft-actions { justify-content: flex-start; margin-top: 4px; }
+.nowrap { white-space: nowrap; }
+table.compact td, table.compact th { white-space: nowrap; }
 .req { color: var(--color-danger, #b3261e); }

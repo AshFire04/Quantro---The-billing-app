@@ -161,7 +161,7 @@ def test_saving_the_copy_replaces_the_bill(client):
     assert "This bill is cancelled" in old_page and "replaced by" in old_page and f"bill {num(2)}" in old_page
     assert ">Edit product<" not in old_page                          # a cancelled bill can't be edited again
     listing = client.get("/bills").data.decode()
-    assert "Cancelled" in listing and f"replaced by {num(2)}" in listing
+    assert "Cancelled" in listing and f"Replaced by {num(2)}" in listing
     assert b">8<" in client.get("/inventory/").data          # 10 - 2
     again = client.get("/billing/edit/1", follow_redirects=True).data
     assert b"already been cancelled or replaced" in again

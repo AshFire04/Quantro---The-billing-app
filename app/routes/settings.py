@@ -134,7 +134,12 @@ def read_offer_form():
     name = f.get("name", "").strip()
     applies_to = f.get("applies_to", "")
     category = f.get("category", "").strip()
-    exclude = f.get("exclude_category", "").strip()
+    chosen = []                         # categories left out of an all-items offer
+    for c in f.getlist("exclude_category"):
+        c = " ".join(c.replace("|", " ").split())
+        if c and c.lower() not in [x.lower() for x in chosen]:
+            chosen.append(c)
+    exclude = "|".join(chosen)
     try:
         pct = parse_percent(f.get("percentage", ""), "The offer percentage")
         if pct <= 0:

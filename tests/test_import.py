@@ -37,17 +37,27 @@ def products(app):
             "gst_rate FROM products ORDER BY id")]
 
 
-def test_import_adds_products_and_new_category_and_supplier(client, app):
+def test_import_adds_products_with_categories_and_suppliers_already_in_the_lists(client, app):
     create(client)
+    for kind, name in (("categories", "Trays"), ("suppliers", "Sai")):
+        client.post(f"/settings/{kind}", data={"name": name})
     page = upload(client, [["KA36", "Tray", "Trays", 450.5, 10.0, 3, "6302", "Sai", 300, 5],
                            [36, "Cushion", None, 299, None, None, None, None, None, None]])
-    assert "2 products added" in page and "Trays" in page
+    assert "2 products added" in page
     assert products(app) == [("KA36", "Tray", "Trays", 45050, 10, 3, "6302", "Sai", 30000, 5.0),
                              ("36", "Cushion", "", 29900, 0, 5, "", "", 0, None)]
+
+
+def test_a_category_or_supplier_not_in_the_lists_is_an_error_and_is_not_created(client, app):
+    create(client)
+    page = upload(client, [["A1", "Tray", "Trays", 450, 1, 1, "", "", "", ""],
+                           ["A2", "Mat", "", 100, 1, 1, "", "Sai", "", ""]])
+    assert "0 products added" in page and page.count("Please choose a") == 2
+    assert products(app) == []
     with app.app_context():
         from app.services import choices
-        assert "Trays" in choices.names(get_db(), 1, "category")
-        assert "Sai" in choices.names(get_db(), 1, "supplier")
+        assert "Trays" not in choices.names(get_db(), 1, "category")
+        assert "Sai" not in choices.names(get_db(), 1, "supplier")
 
 
 def test_bad_rows_are_skipped_and_named_and_good_rows_still_import(client, app):

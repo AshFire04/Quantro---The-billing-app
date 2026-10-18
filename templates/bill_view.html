@@ -90,6 +90,7 @@
   <p class="muted">Paid by:
     {% for p in payments %}{{ p.mode }} {{ p.amount | rupees }}{% if p.paid_at %} (received {{ p.paid_at | fdate }}){% endif %}{% if not loop.last %}, {% endif %}
     {% else %}nothing yet{% endfor %}
+    {% if payments and bill.status != 'Draft' %}<a class="btn small" href="{{ url_for('bills.payment_method', bill_id=bill.id) }}">Edit payment method</a>{% endif %}
   </p>
   {% if bill.due_amount and bill.status == 'Saved' %}
   <div class="due-note">

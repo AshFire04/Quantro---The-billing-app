@@ -1,5 +1,5 @@
 /* Shop Details, laid out like the Shop-Details.html mock-up. */
-.page.sd { max-width: 1240px; padding: 40px 32px 72px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+.page.sd { max-width: 1700px; width: 94%; padding: 40px 32px 72px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
 .sd-title h1 { margin: 0 0 6px; font-size: 36px; font-weight: 700; letter-spacing: -0.02em; }
 .sd-title p { margin: 0; font-size: 17px; color: #5E6770; max-width: 640px; line-height: 1.5; }
 
@@ -76,7 +76,7 @@
 .sd-switch-text { width: 28px; font-size: 15px; font-weight: 700; color: #5E6770; }
 .sd-trash { width: 44px; height: 44px; border: 1px solid #E4C2BF; border-radius: 10px; background: #FFFFFF; color: #A32019; display: flex; align-items: center; justify-content: center; cursor: pointer; }
 
-.sd-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 24px; align-items: start; }
+.sd-pair { display: grid; grid-template-columns: 1fr; gap: 24px; align-items: start; }
 .sd-chips { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 10px; }
 .sd-chips li { display: flex; align-items: center; gap: 2px; height: 44px; padding: 0 4px 0 16px; border-radius: 99px; background: #E4ECF6; color: #254A78; font-size: 15px; font-weight: 700; }
 .sd-chips form { margin: 0; }
@@ -116,10 +116,15 @@
   .sd-qrs li form .sd-btn-danger { width: auto; }
 }
 
-.sd-logo-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 20px; }
+.sd-logo-row { display: flex; flex-wrap: nowrap; align-items: flex-end; gap: 20px; }
 .sd-logo-box { width: 150px; height: 150px; box-sizing: border-box; border: 1px solid #E5E0D4; border-radius: 14px; background: #FFFFFF; padding: 14px; display: flex; align-items: center; justify-content: center; color: #5E6770; font-size: 14px; text-align: center; }
 .sd-logo-box img { max-width: 100%; max-height: 100%; object-fit: contain; }
-.sd-logo-form { flex: 1 1 360px; }
+.sd-multi { position: relative; }
+.sd-multi summary { height: 46px; box-sizing: border-box; display: flex; align-items: center; padding: 0 14px; border: 1px solid #CFC9BA; border-radius: 10px; background: #FFFFFF; cursor: pointer; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.sd-multi-list { position: absolute; z-index: 5; left: 0; right: 0; max-height: 220px; overflow: auto; margin-top: 4px; padding: 8px; background: #FFFFFF; border: 1px solid #CFC9BA; border-radius: 10px; box-shadow: 0 6px 18px rgba(0,0,0,.12); display: flex; flex-direction: column; gap: 6px; }
+.sd-multi-list label { display: flex; align-items: center; gap: 8px; font-size: 15px; }
+.sd-logo-form { flex: 1 1 360px; flex-wrap: nowrap; }
+#target .sd-row { flex-wrap: nowrap; }
 .sd-paper-logo { max-width: 120px; max-height: 70px; object-fit: contain; margin-bottom: 6px; }
 
 .sd-default { margin: 0; }

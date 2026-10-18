@@ -7,7 +7,7 @@ from ..auth import login_required
 from ..db import get_db
 from ..services import choices
 from ..services import customers as people
-from ..services.billing import (BillError, CUSTOMER_TYPES, cancel_bill, delete_draft, receive_due,
+from ..services.billing import (BillError, CUSTOMER_TYPES, cancel_bill, change_payment_modes, delete_draft, receive_due,
                                 prepare_bill_customer, save_bill_customer)
 from ..services.states import PLACES
 from ..services.export import bills_workbook
@@ -25,7 +25,8 @@ def filtered_bills():
          for key in ("source", "mode", "due", "status", "date_from", "date_to", "customer")}
     f["date_from"], f["date_to"] = date_range(args)         # this month so far, until chosen otherwise
     sql = ("SELECT bills.*, (SELECT bill_label FROM bills r WHERE r.id = bills.replaced_by) "
-           "AS replaced_by_number FROM bills WHERE shop_id = ?")
+           "AS replaced_by_number, (SELECT bill_label FROM bills r WHERE r.id = bills.replaces) "
+           "AS replaces_number FROM bills WHERE shop_id = ?")
     params = [g.shop["id"]]
     if q:
         # A bill number may be typed as 26/1, 1 or #1. Customer name and phone are searched too.
@@ -214,6 +215,33 @@ def payment_received(bill_id):
     except BillError as e:
         flash(str(e))
     return redirect(url_for("bills.view", bill_id=bill_id))
+
+@bp.route("/bills/<int:bill_id>/payment-method", methods=("GET", "POST"))
+@login_required
+def payment_method(bill_id):
+    """Change which method each payment was made with. Nothing else about the bill changes."""
+    db = get_db()
+    bill = db.execute("SELECT * FROM bills WHERE id = ? AND shop_id = ?",
+                      (bill_id, g.shop["id"])).fetchone()
+    if bill is None:
+        abort(404)
+    payments = db.execute("SELECT * FROM payments WHERE bill_id = ? ORDER BY id", (bill_id,)).fetchall()
+    if bill["status"] == "Draft" or not payments:
+        flash("This bill has no payments to change")
+        return redirect(url_for("bills.view", bill_id=bill_id))
+    if request.method == "POST":
+        picks = {p["id"]: (request.form.get(f"mode_{p['id']}"), request.form.get(f"other_{p['id']}"))
+                 for p in payments}
+        try:
+            change_payment_modes(db, g.shop["id"], bill_id, picks)
+        except BillError as e:
+            flash(str(e))
+        else:
+            flash("Payment method changed.", "ok")
+            return redirect(url_for("bills.view", bill_id=bill_id))
+    methods = choices.names(db, g.shop["id"], "method")
+    return render_template("payment_method.html", bill=bill, payments=payments, methods=methods)
+
 
 @bp.route("/bills/<int:bill_id>/delete-draft", methods=("POST",))
 @login_required

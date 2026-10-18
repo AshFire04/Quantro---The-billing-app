@@ -137,9 +137,9 @@ def test_dates_show_as_day_short_month_year_without_time(client):
         "items": [{"product_id": 1, "quantity": 1}], "customer": "Ravi", "order_source": "Instagram",
         "payments": [{"mode": "Cash"}], "due_amount": "100"})
     today = datetime.now().strftime("%d %b %Y")
-    for url in ("/bills", "/bills/1"):
+    for url, shown in (("/bills", datetime.now().strftime("%d/%m/%y")), ("/bills/1", today)):
         page = client.get(url).data.decode()
-        assert today in page
+        assert shown in page                 # Past bills: DD/MM/YY; the bill page: 18 Oct 2026
         assert datetime.now().strftime("%Y-%m-%dT") not in page
     client.post("/bills/1/payment-received", data={"mode": "UPI"})
     assert f"(received {today})" in client.get("/bills/1").data.decode()
@@ -203,5 +203,26 @@ def test_past_bills_shows_upi_cash_netbanking_and_due_for_every_bill(client):
         cells = [c.split("</td>")[0].split(">")[-1].strip() for c in row.split("<td")[1:]]
         rows[cells[2]] = cells
     asha, ravi = rows["Asha"], rows["Ravi"]
-    assert asha[-5:] == ["₹400.00", "₹200.00", "-", "-", "₹300.00"]   # a dash where it is nothing
-    assert ravi[-5:] == ["₹450.00", "-", "-", "-", "-"]
+    assert asha[-6:-1] == ["₹400.00", "₹200.00", "-", "-", "₹300.00"]   # a dash where it is nothing
+    assert ravi[-6:-1] == ["₹450.00", "-", "-", "-", "-"]
+
+
+def test_only_the_payment_method_can_be_changed_on_a_bill(client, app):
+    create(client)
+    add(client, name="Tray", price="450", stock="20")
+    client.post("/billing/save", json={
+        "items": [{"product_id": 1, "quantity": 2}], "customer": "Ravi", "order_source": "Walk-in",
+        "payments": [{"mode": "Cash", "amount": "300"}, {"mode": "UPI", "amount": "600"}]})
+    assert "Edit payment method" in client.get("/bills/1").data.decode()
+    form = client.get("/bills/1/payment-method").data.decode()
+    assert "₹300.00" in form and "₹600.00" in form
+    res = client.post("/bills/1/payment-method", data={"mode_1": "Card", "mode_2": "Other", "other_2": "Cheque"},
+                      follow_redirects=True)
+    assert "Payment method changed" in res.data.decode()
+    import sqlite3
+    db = sqlite3.connect(app.config["DATABASE"])
+    assert db.execute("SELECT mode, amount FROM payments ORDER BY id").fetchall() == [("Card", 30000), ("Other: Cheque", 60000)]
+    assert db.execute("SELECT total, stock FROM bills, products WHERE bills.id = 1").fetchone() == (90000, 18)
+    bad = client.post("/bills/1/payment-method", data={"mode_1": "Barter", "mode_2": "Cash"})
+    assert b"payment method" in bad.data.lower()
+    assert db.execute("SELECT mode FROM payments ORDER BY id").fetchall() == [("Card",), ("Other: Cheque",)]

@@ -35,9 +35,10 @@ def create_app(test_config=None):
 
     from .services.billing import bill_status
     app.jinja_env.globals["bill_status"] = bill_status
-    from .services.money import format_date, format_rupees
+    from .services.money import format_date, format_rupees, short_date
     app.jinja_env.filters["rupees"] = format_rupees
     app.jinja_env.filters["fdate"] = format_date
+    app.jinja_env.filters["sdate"] = short_date
 
     @app.context_processor
     def undo_banner():

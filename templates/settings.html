@@ -203,7 +203,7 @@
             <span class="sd-pills">
               <span class="sd-pill strong">{{ "%g" | format(o.percentage) }}% off</span>
               <span class="sd-pill">
-                {% if o.applies_to == 'category' %}Items in “{{ o.category }}”{% else %}All items{% if o.min_amount %}, when the bill reaches {{ o.min_amount | rupees }}{% endif %}{% if o.exclude_category %}, except “{{ o.exclude_category }}”{% endif %}{% endif %}
+                {% if o.applies_to == 'category' %}Items in “{{ o.category }}”{% else %}All items{% if o.min_amount %}, when the bill reaches {{ o.min_amount | rupees }}{% endif %}{% if o.exclude_category %}, except {% for c in o.exclude_category.split("|") %}“{{ c }}”{{ ", " if not loop.last }}{% endfor %}{% endif %}{% endif %}
               </span>
             </span>
           </div>
@@ -248,10 +248,16 @@
             <input type="text" name="category" list="categories" placeholder="e.g. Bedsheets">
             <datalist id="categories">{% for c in categories %}<option value="{{ c }}">{% endfor %}</datalist>
           </label>
-          <label class="sd-field" id="exclude-field" hidden>
-            <span>Except category (optional)</span>
-            <input type="text" name="exclude_category" list="categories" placeholder="e.g. Curtains">
-          </label>
+          <div class="sd-field" id="exclude-field" hidden>
+            <span>Except categories (optional)</span>
+            <details class="sd-multi">
+              <summary id="exclude-summary">None</summary>
+              <div class="sd-multi-list">
+                {% for c in categories_list %}<label><input type="checkbox" name="exclude_category" value="{{ c.name }}"> {{ c.name }}</label>
+                {% else %}<span class="sd-small">Add product categories below first.</span>{% endfor %}
+              </div>
+            </details>
+          </div>
           <label class="sd-field" id="minimum-field" hidden>
             <span>Minimum bill amount (₹, optional)</span>
             <input type="text" name="min_amount" inputmode="decimal" placeholder="e.g. 2500">
@@ -362,6 +368,10 @@
     document.getElementById("exclude-field").hidden = !whole;
   }
   appliesTo.onchange = showOfferFields;
+  document.querySelector(".sd-multi-list").addEventListener("change", () => {
+    const names = [...document.querySelectorAll('input[name="exclude_category"]:checked')].map(i => i.value);
+    document.getElementById("exclude-summary").textContent = names.length ? names.join(", ") : "None";
+  });
   showOfferFields();
 
   // Bill preview: follows what is typed, before it is saved.
@@ -380,9 +390,14 @@
 
   // The section menu highlights the section you are looking at.
   const links = [...document.querySelectorAll(".sd-nav a")];
+  let clickedAt = 0;                       // a click picks the highlight; scrolling must not undo it
+  links.forEach(a => a.addEventListener("click", () => {
+    clickedAt = Date.now();
+    links.forEach(l => l.classList.toggle("active", l === a));
+  }));
   const seen = new IntersectionObserver(entries => {
     for (const e of entries) {
-      if (e.isIntersecting) links.forEach(a => a.classList.toggle("active", a.getAttribute("href") === "#" + e.target.id));
+      if (e.isIntersecting && Date.now() - clickedAt > 1200) links.forEach(a => a.classList.toggle("active", a.getAttribute("href") === "#" + e.target.id));
     }
   }, { rootMargin: "-20% 0px -65% 0px" });
   document.querySelectorAll(".sd-main section").forEach(s => seen.observe(s));
