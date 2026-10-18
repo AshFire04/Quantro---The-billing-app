@@ -11,6 +11,7 @@ from ..services.billing import (BillError, CUSTOMER_TYPES, cancel_bill, receive_
                                 update_bill_customer)
 from ..services.states import PLACES
 from ..services.export import bills_workbook
+from ..services.period import date_range
 
 bp = Blueprint("bills", __name__)
 
@@ -21,6 +22,7 @@ def filtered_bills():
     q = args.get("q", "").strip()
     f = {key: args.get(key, "").strip()
          for key in ("source", "mode", "due", "date_from", "date_to", "customer")}
+    f["date_from"], f["date_to"] = date_range(args)         # this month so far, until chosen otherwise
     sql = ("SELECT bills.*, (SELECT bill_label FROM bills r WHERE r.id = bills.replaced_by) "
            "AS replaced_by_number FROM bills WHERE shop_id = ?")
     params = [g.shop["id"]]
@@ -76,7 +78,7 @@ def index():
     columns = methods + (["Other"] if any("Other" in m for m in paid.values()) else [])
     has_any = get_db().execute("SELECT 1 FROM bills WHERE shop_id = ?",
                                (g.shop["id"],)).fetchone() is not None
-    filtering = bool(q or any(f.values()))
+    filtering = bool(request.args)
     return render_template("bills.html", bills=bills, q=q, f=f, has_any=has_any,
                            filtering=filtering, paid=paid, columns=columns,
                            order_sources=choices.filter_options(get_db(), g.shop["id"], "source"),
@@ -132,7 +134,7 @@ def edit_customer(bill_id):
     """Fix the customer details printed on this one bill. No other bill is touched."""
     bill = own_bill(bill_id)
     values = {"name": bill["customer_name"], "phone": bill["customer_phone"],
-              "other_phone": bill["customer_other_phone"], "location": bill["customer_location"],
+              "location": bill["customer_location"],
               "customer_type": bill["customer_type"] or "Retail",
               "place": bill["place_of_sale"], "place_other": ""}
     if values["place"] and values["place"] not in PLACES:
@@ -140,7 +142,7 @@ def edit_customer(bill_id):
     if request.method == "POST":
         f = request.form
         values = {"name": f.get("name", ""), "phone": f.get("phone", ""),
-                  "other_phone": f.get("other_phone", ""), "location": f.get("location", ""),
+                  "location": f.get("location", ""),
                   "customer_type": f.get("customer_type", ""),
                   "place": f.get("place", ""), "place_other": f.get("place_other", "")}
         place = values["place_other"] if values["place"] == "Other" else values["place"]
@@ -148,8 +150,8 @@ def edit_customer(bill_id):
             if values["place"] == "Other" and not place.strip():
                 raise BillError("Please type the state or country for 'Other'")
             owner = update_bill_customer(get_db(), g.shop["id"], bill_id, values["name"],
-                                         values["phone"], values["other_phone"],
-                                         values["location"], place, values["customer_type"])
+                                         values["phone"], values["location"], place,
+                                         values["customer_type"])
             if owner is not None:
                 return redirect(url_for("bills.link_customer", bill_id=bill_id, to=owner["id"]))
             flash("Customer details updated on this bill only.", "ok")

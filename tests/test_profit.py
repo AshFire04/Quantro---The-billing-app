@@ -10,6 +10,9 @@ from tests.test_auth import create
 
 
 def product(client, name, price, cost="", supplier="", stock="50", category=""):
+    for field, word in ((category, "categories"), (supplier, "suppliers")):
+        if field:
+            client.post(f"/settings/{word}", data={"name": field})
     res = client.post("/inventory/new", data={
         "name": name, "price": price, "stock": stock, "low_stock_level": "2",
         "cost_price": cost, "supplier": supplier, "category": category})

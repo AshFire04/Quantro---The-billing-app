@@ -70,15 +70,11 @@ def test_only_indian_mobile_numbers_are_accepted(client, typed):
     assert "No customers yet" in page(client, "/customers")
 
 
-def test_other_phone_is_kept_but_never_used_for_matching(client, app):
+def test_there_is_no_other_phone_anywhere(client):
     setup(client)
-    post_bill(client, "Asha", "9876543210", other_phone="080 1234 5678")
-    post_bill(client, "Ravi", "9123456780", other_phone="080 1234 5678")      # same landline text
-    assert sorted(rows(client)) == ["Asha", "Ravi"]                            # two people
-    assert "080 1234 5678" in page(client, "/customers")
-    assert client.get("/customers/search?q=080").get_json()["customers"] == []   # not searched
-    assert client.get("/customers/lookup?phone=0801234567").get_json()["found"] is False
-    assert bill(app, 1)["customer_other_phone"] == "080 1234 5678"
+    post_bill(client, "Asha", "9876543210")
+    for url in ("/billing", "/customers", "/customers/1", "/bills/1/customer"):
+        assert "Other phone" not in page(client, url) and "other_phone" not in page(client, url)
 
 
 # ---- identity is the id ----
@@ -373,14 +369,14 @@ def test_edit_customer_on_a_bill_changes_only_that_bill(client, app):
     p = page(client, "/bills/1/customer")
     assert 'value="Asha"' in p and "this bill" in p and "stay exactly as they are" in p
     res = client.post("/bills/1/customer", data={
-        "name": "Asha Rao", "phone": "+91 98765 43210", "other_phone": "080 1234 5678",
+        "name": "Asha Rao", "phone": "+91 98765 43210",
         "location": "Indiranagar", "place": "Kerala", "place_other": "", "customer_type": "B2B"},
         follow_redirects=True)
     assert "this bill only" in page_of(res)
     after = bill(app, 1)
-    assert (after["customer_name"], after["customer_phone"], after["customer_other_phone"],
-            after["customer_location"], after["place_of_sale"], after["customer_type"]) == (
-        "Asha Rao", "9876543210", "080 1234 5678", "Indiranagar", "Kerala", "B2B")
+    assert (after["customer_name"], after["customer_phone"], after["customer_location"],
+            after["place_of_sale"], after["customer_type"]) == (
+        "Asha Rao", "9876543210", "Indiranagar", "Kerala", "B2B")
     for field in ("bill_label", "total", "status", "invoice_number", "replaced_by", "replaces", "customer_id"):
         assert after[field] == before[field]
     db = database(app)
@@ -484,7 +480,7 @@ def test_the_upgrade_keeps_customers_and_links_every_bill(client, app, capsys):
 
 def test_the_upgrade_shows_old_customers_correctly_on_the_page(client, app):
     setup(client)
-    for name in ("Ravi", "Lal"):
+    for name in ("A", "B", "Ravi", "Lal"):                 # bills 3 and 4 belong to customers 3 and 4
         post_bill(client, name)
     old_style(app)
     db = database(app)
@@ -493,6 +489,6 @@ def test_the_upgrade_shows_old_customers_correctly_on_the_page(client, app):
     with app.app_context():
         init_db()
     p = page(client, "/customers")
-    assert p.count("No phone, older bill") == 2 and "011 2345 6789" in p
+    assert p.count("No phone, older bill") == 2
     post_bill(client, "New person")                                   # a new no-phone customer
     assert page(client, "/customers").count("No phone, older bill") == 2

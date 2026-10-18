@@ -5,7 +5,15 @@ def add(client, **kw):
     data = {"code": "", "name": "Tray", "category": "Trays", "price": "450",
             "stock": "10", "low_stock_level": "3"}
     data.update(kw)
+    ensure_listed(client, data)
     return client.post("/inventory/new", data=data)
+
+
+def ensure_listed(client, data):
+    """Categories and suppliers are picked from the lists in Shop Details, so put them there first."""
+    for field, word in (("category", "categories"), ("supplier", "suppliers")):
+        if data.get(field):
+            client.post(f"/settings/{word}", data={"name": data[field]})
 
 
 def test_empty_state(client):
@@ -52,7 +60,7 @@ def test_search_by_name_or_code(client):
     add(client, name="Bedsheet", category="Linen")
     assert b"Bedsheet" not in client.get("/inventory/?q=ka36").data
     assert b"Bedsheet" in client.get("/inventory/?q=bed").data
-    assert b"Tray" not in client.get("/inventory/?q=bed").data
+    assert b"<td>Tray</td>" not in client.get("/inventory/?q=bed").data
 
 
 def test_validation(client):
@@ -76,6 +84,7 @@ def test_shops_are_separate(client, app):
 def test_extra_product_details_are_saved_shown_and_optional(client):
     from tests.test_auth import create
     create(client)
+    client.post("/settings/suppliers", data={"name": "Mehta Traders"})
     res = client.post("/inventory/new", data={
         "name": "Tray", "price": "450", "stock": "5", "low_stock_level": "2",
         "hsn": "9403", "supplier": "Mehta Traders", "cost_price": "300.50", "gst_rate": "18"})

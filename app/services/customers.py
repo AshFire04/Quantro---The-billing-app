@@ -2,16 +2,13 @@
 
 A customer is identified by their id, never by their name. The phone number is the one thing
 that can find a customer again, and it is unique within a shop when it is not empty. Only
-Indian mobile numbers count (10 digits, starting 6 to 9); a landline goes in "Other phone",
-which is never used for matching.
+Indian mobile numbers count (10 digits, starting 6 to 9).
 
 A bill keeps its own copy of the name, phone and location it was made with, so changing a
 customer later never changes what was printed.
 """
 WALK_IN = "Walk-in customer"
-MOBILE_MESSAGE = ("Enter a 10-digit mobile number starting with 6, 7, 8 or 9. "
-                  "A landline can go in Other phone.")
-MAX_OTHER_PHONE = 40
+MOBILE_MESSAGE = "Enter a 10-digit mobile number starting with 6, 7, 8 or 9."
 
 
 class CustomerError(Exception):
@@ -46,13 +43,6 @@ def normalize_phone(text):
     return "", MOBILE_MESSAGE
 
 
-def clean_other_phone(text):
-    text = " ".join(str(text or "").split())
-    if len(text) > MAX_OTHER_PHONE:
-        raise CustomerError(f"Keep Other phone under {MAX_OTHER_PHONE} characters")
-    return text
-
-
 def get(db, shop_id, customer_id):
     try:
         customer_id = int(customer_id)
@@ -69,40 +59,54 @@ def find_by_phone(db, shop_id, digits):
                       (shop_id, digits)).fetchone()
 
 
-LIST_SQL = ("SELECT c.*, COUNT(b.id) AS bill_count, COALESCE(SUM(b.total), 0) AS spent, "
-            "MAX(b.created_at) AS last_bill FROM customers c "
-            "LEFT JOIN bills b ON b.customer_id = c.id AND b.status = 'Saved' "
-            "WHERE c.shop_id = ?")
+def listing(db, shop_id, q="", order="c.name COLLATE NOCASE", limit=None, start="", end="",
+            customer_type=""):
+    """Customers with their bill count, total billed and last bill date.
 
-
-def listing(db, shop_id, q="", order="c.name COLLATE NOCASE", limit=None):
-    """Customers with their bill count, total billed and last bill date."""
-    sql, params = LIST_SQL, [shop_id]
+    With `start` and/or `end` ('YYYY-MM-DD'), only bills in that period are counted and only
+    customers who have one are listed. `customer_type` ('Retail' or 'B2B') narrows the list.
+    """
+    join, join_params = "b.customer_id = c.id AND b.status = 'Saved'", []
+    if start:
+        join += " AND substr(b.created_at, 1, 10) >= ?"
+        join_params.append(start)
+    if end:
+        join += " AND substr(b.created_at, 1, 10) <= ?"
+        join_params.append(end)
+    sql = ("SELECT c.*, COUNT(b.id) AS bill_count, COALESCE(SUM(b.total), 0) AS spent, "
+           f"MAX(b.created_at) AS last_bill FROM customers c LEFT JOIN bills b ON {join} "
+           "WHERE c.shop_id = ?")
+    params = join_params + [shop_id]
+    if customer_type:
+        sql += " AND c.customer_type = ?"
+        params.append(customer_type)
     q = q.strip()
     if q:
         digits = "".join(c for c in q if c.isdigit())
-        clauses = ["c.name LIKE ?", "c.location LIKE ?"]      # Other phone is never searched
+        clauses = ["c.name LIKE ?", "c.location LIKE ?"]
         params += [f"%{q}%"] * 2
         if len(digits) >= 3:
             clauses.append("c.phone LIKE ?")
             params.append(f"%{digits}%")
         sql += " AND (" + " OR ".join(clauses) + ")"
-    sql += f" GROUP BY c.id ORDER BY {order}"
+    sql += " GROUP BY c.id"
+    if start or end:
+        sql += " HAVING COUNT(b.id) > 0"
+    sql += f" ORDER BY {order}"
     if limit:
         sql += f" LIMIT {int(limit)}"
     return db.execute(sql, params).fetchall()
 
 
-def create(db, shop_id, name, phone, other_phone, location, customer_type):
+def create(db, shop_id, name, phone, location, customer_type):
     """Add a customer (phone already checked and normalised). Returns the new id."""
     return db.execute(
-        "INSERT INTO customers (shop_id, name, phone, other_phone, location, customer_type) "
-        "VALUES (?, ?, ?, ?, ?, ?)",
-        (shop_id, name.strip(), phone, other_phone, location.strip(), customer_type)).lastrowid
+        "INSERT INTO customers (shop_id, name, phone, location, customer_type) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (shop_id, name.strip(), phone, location.strip(), customer_type)).lastrowid
 
 
-def resolve_for_bill(db, shop_id, customer_id, name, phone_text, other_phone, location,
-                     customer_type):
+def resolve_for_bill(db, shop_id, customer_id, name, phone_text, location, customer_type):
     """Decide which customer a new bill belongs to. Returns (customer id, name, phone).
 
     Call inside the transaction that saves the bill. Saving a bill never edits an existing
@@ -118,7 +122,6 @@ def resolve_for_bill(db, shop_id, customer_id, name, phone_text, other_phone, lo
     digits, error = normalize_phone(phone_text)
     if error:
         raise CustomerError(error)
-    other_phone = clean_other_phone(other_phone)
     name = name.strip()
     owner = find_by_phone(db, shop_id, digits)
     if customer_id:
@@ -134,13 +137,13 @@ def resolve_for_bill(db, shop_id, customer_id, name, phone_text, other_phone, lo
     if digits:
         if not name:
             raise CustomerError("Please enter the customer's name for a new phone number")
-        return create(db, shop_id, name, digits, other_phone, location, customer_type), name, digits
+        return create(db, shop_id, name, digits, location, customer_type), name, digits
     if name:
-        return create(db, shop_id, name, "", other_phone, location, customer_type), name, ""
+        return create(db, shop_id, name, "", location, customer_type), name, ""
     return 0, WALK_IN, ""
 
 
-def update(db, shop_id, customer_id, name, phone_text, other_phone, location, customer_type):
+def update(db, shop_id, customer_id, name, phone_text, location, customer_type):
     """Change a customer's record. It affects future bills only; printed bills keep their copy.
 
     Raises PhoneTaken if the number belongs to another customer.
@@ -154,14 +157,13 @@ def update(db, shop_id, customer_id, name, phone_text, other_phone, location, cu
     digits, error = normalize_phone(phone_text)
     if error:
         raise CustomerError(error)
-    other_phone = clean_other_phone(other_phone)
     owner = find_by_phone(db, shop_id, digits)
     if owner is not None and owner["id"] != customer["id"]:
         raise PhoneTaken(owner)
     with db:
-        db.execute("UPDATE customers SET name = ?, phone = ?, other_phone = ?, location = ?, "
+        db.execute("UPDATE customers SET name = ?, phone = ?, location = ?, "
                    "customer_type = ?, legacy = ? WHERE id = ?",
-                   (name, digits, other_phone, location.strip(), customer_type,
+                   (name, digits, location.strip(), customer_type,
                     1 if customer["legacy"] and not digits else 0, customer["id"]))
 
 

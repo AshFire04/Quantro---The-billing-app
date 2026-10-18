@@ -6,17 +6,19 @@ from ..db import get_db
 from ..services import customers as people
 from ..services.billing import CUSTOMER_TYPES
 from ..services.money import format_date, format_rupees
+from ..services.period import date_range
 
 bp = Blueprint("customers", __name__)
 
-SORTS = {"name": "c.name COLLATE NOCASE",
+SORTS = {"last": "last_bill IS NULL, last_bill DESC, c.name COLLATE NOCASE",
+         "name": "c.name COLLATE NOCASE",
          "high": "spent DESC, c.name COLLATE NOCASE",
          "low": "spent ASC, c.name COLLATE NOCASE"}
 
 
 def card(c):
     """A customer as the Billing screen and pickers need them (JSON)."""
-    return {"id": c["id"], "name": c["name"], "phone": c["phone"], "other_phone": c["other_phone"],
+    return {"id": c["id"], "name": c["name"], "phone": c["phone"],
             "location": c["location"], "customer_type": c["customer_type"],
             "legacy": bool(c["legacy"]), "bill_count": c["bill_count"],
             "last_bill": format_date(c["last_bill"]) if c["last_bill"] else "",
@@ -34,13 +36,18 @@ def own_customer(customer_id):
 @login_required
 def index():
     q = request.args.get("q", "").strip()
-    sort = request.args.get("sort", "name")
+    sort = request.args.get("sort", "last")
+    ctype = request.args.get("type", "")
+    ctype = ctype if ctype in CUSTOMER_TYPES else ""
+    start, end = date_range(request.args)
     db = get_db()
     has_any = db.execute("SELECT 1 FROM customers WHERE shop_id = ?",
                          (g.shop["id"],)).fetchone() is not None
-    return render_template("customers.html", q=q, has_any=has_any, sort=sort,
-                           customers=people.listing(db, g.shop["id"], q,
-                                                    SORTS.get(sort, SORTS["name"])))
+    customers = people.listing(db, g.shop["id"], q, SORTS.get(sort, SORTS["last"]),
+                               start=start, end=end, customer_type=ctype)
+    return render_template("customers.html", q=q, has_any=has_any, sort=sort, ctype=ctype,
+                           date_from=start, date_to=end, customers=customers,
+                           customer_types=CUSTOMER_TYPES)
 
 
 @bp.route("/customers/lookup")
@@ -72,7 +79,7 @@ def detail(customer_id):
     db = get_db()
     customer = own_customer(customer_id)
     values = {"name": customer["name"], "phone": customer["phone"],
-              "other_phone": customer["other_phone"], "location": customer["location"],
+              "location": customer["location"],
               "customer_type": customer["customer_type"]}
     taken = None
     if request.method == "POST":
@@ -80,7 +87,7 @@ def detail(customer_id):
         values = {k: f.get(k, "") for k in values}
         try:
             people.update(db, g.shop["id"], customer_id, values["name"], values["phone"],
-                          values["other_phone"], values["location"], values["customer_type"])
+                          values["location"], values["customer_type"])
             flash("Customer saved. Bills already made keep what was printed on them.", "ok")
             return redirect(url_for("customers.detail", customer_id=customer_id))
         except people.PhoneTaken as e:

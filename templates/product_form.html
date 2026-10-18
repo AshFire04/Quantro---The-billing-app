@@ -6,16 +6,21 @@
 <form method="post" class="card form">
   <div class="form-cols">
   <div>
-  <label>Item code (optional)
-    <input name="code" value="{{ product.code or '' }}" placeholder="e.g. KA36">
+  <label>Item Code/Bar Code (optional)
+    <input name="code" value="{{ product.code or '' }}" placeholder="e.g. KA36 or scan a bar code">
   </label>
   <label>Name
     <input name="name" value="{{ product.name or '' }}" required placeholder="e.g. Tray 9.5 x 9.5 x 1.5">
   </label>
   <label>Category
-    <input name="category" value="{{ product.category or '' }}" placeholder="e.g. Trays">
+    <select name="category">
+      <option value="">No category</option>
+      {% for c in category_choices %}<option{{ ' selected' if c == product.category }}>{{ c }}</option>{% endfor %}
+      {% if product.category and product.category not in category_choices %}<option selected>{{ product.category }}</option>{% endif %}
+    </select>
+    {% if not category_choices %}<small class="muted">Add categories in <a href="{{ url_for('settings.index') }}#categories">Shop Details</a>.</small>{% endif %}
   </label>
-  <label>Price (₹)
+  <label>Selling Price (₹)
     <input name="price" inputmode="decimal" value="{{ product.price or '' }}" required>
   </label>
   <label>Stock
@@ -30,7 +35,12 @@
     <input name="hsn" inputmode="numeric" maxlength="8" value="{{ product.hsn or '' }}" placeholder="e.g. 9403">
   </label>
   <label>Supplier name
-    <input name="supplier" value="{{ product.supplier or '' }}" placeholder="Who you buy it from">
+    <select name="supplier">
+      <option value="">No supplier</option>
+      {% for s in supplier_choices %}<option{{ ' selected' if s == product.supplier }}>{{ s }}</option>{% endfor %}
+      {% if product.supplier and product.supplier not in supplier_choices %}<option selected>{{ product.supplier }}</option>{% endif %}
+    </select>
+    {% if not supplier_choices %}<small class="muted">Add suppliers in <a href="{{ url_for('settings.index') }}#suppliers">Shop Details</a>.</small>{% endif %}
   </label>
   <label>Cost price (₹)
     <input name="cost_price" inputmode="decimal" value="{{ product.cost_price or '' }}" placeholder="What it costs you">

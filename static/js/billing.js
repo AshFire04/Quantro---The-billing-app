@@ -222,7 +222,6 @@ $("clear").onclick = () => {
   renderOffers();
   $("customer").value = "";
   $("phone").value = "";
-  $("other-phone").value = "";
   selectedCustomer = null;
   showNote("");
   $("location").value = "";
@@ -269,7 +268,6 @@ function pickCustomer(c) {
   selectedCustomer = c;
   $("customer").value = c.name;
   $("location").value = c.location;
-  $("other-phone").value = c.other_phone;
   if (c.phone) $("phone").value = c.phone;
   for (const r of typeRadios()) r.checked = r.value === c.customer_type;
   $("customer-results").hidden = true;
@@ -285,7 +283,7 @@ $("phone").oninput = () => {
   if (!d) return showNote("");
   if (d.length < 10 && !(d.length > 10)) return showNote("");
   if (!isMobile(d)) {
-    return showNote("Enter a 10-digit mobile number starting with 6, 7, 8 or 9. A landline can go in Other phone.", "bad");
+    return showNote("Enter a 10-digit mobile number starting with 6, 7, 8 or 9.", "bad");
   }
   if (selectedCustomer) return;
   phoneTimer = setTimeout(async () => {
@@ -477,7 +475,6 @@ $("save").onclick = async () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ items, customer: $("customer").value, phone: $("phone").value,
-                             other_phone: $("other-phone").value,
                              customer_id: selectedCustomer ? selectedCustomer.id : null,
                              location: $("location").value,
                              whole_discount: $("whole-discount").value, shipping: $("shipping").value,
@@ -511,7 +508,6 @@ function applyPrefill(old) {
   }
   $("customer").value = old.customer;
   $("phone").value = old.phone;
-  $("other-phone").value = old.other_phone;
   if (old.customer_id) selectedCustomer = { id: old.customer_id, phone: phoneDigits(old.phone) };
   $("location").value = old.location;
   if ([...$("place").options].some(o => o.value === old.place && o.value !== "Other")) {

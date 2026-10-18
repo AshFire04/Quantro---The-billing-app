@@ -1,4 +1,5 @@
 import os
+import re
 import secrets
 
 from flask import (Blueprint, abort, current_app, flash, g, redirect, render_template,
@@ -13,7 +14,7 @@ from ..services.money import paise_to_input, rupees_to_paise
 bp = Blueprint("settings", __name__)
 
 MAX_QR_BYTES = 1024 * 1024        # 1 MB per image
-MAX_QR_CODES = 6
+MAX_QR_CODES = 3
 # The first bytes of a real PNG or JPEG file. The file name alone can't be trusted.
 IMAGE_TYPES = {b"\x89PNG\r\n\x1a\n": ".png", b"\xff\xd8\xff": ".jpg"}
 
@@ -33,7 +34,11 @@ def index():
                            categories=categories, paise_to_input=paise_to_input,
                            max_qr_codes=MAX_QR_CODES,
                            sources=choices.rows(db, g.shop["id"], "source"),
-                           methods=choices.rows(db, g.shop["id"], "method"))
+                           methods=choices.rows(db, g.shop["id"], "method"),
+                           categories_list=choices.rows(db, g.shop["id"], "category"),
+                           suppliers=choices.rows(db, g.shop["id"], "supplier"),
+                           default_source=choices.default_of(db, g.shop["id"], "source"),
+                           default_method=choices.default_of(db, g.shop["id"], "method"))
 
 
 @bp.route("/settings/details", methods=("POST",))
@@ -44,11 +49,15 @@ def details():
     if not name:
         flash("Please give your shop a name")
         return redirect(url_for("settings.index"))
+    email = f.get("email", "").strip()
+    if email and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+        flash("That email address doesn't look right")
+        return redirect(url_for("settings.index"))
     db = get_db()
     with db:
-        db.execute("UPDATE shops SET name = ?, phone = ?, website = ?, bank_details = ?, "
-                   "terms = ? WHERE id = ?",
-                   (name, f.get("phone", "").strip(), f.get("website", "").strip(),
+        db.execute("UPDATE shops SET name = ?, phone = ?, website = ?, email = ?, "
+                   "bank_details = ?, terms = ? WHERE id = ?",
+                   (name, f.get("phone", "").strip(), f.get("website", "").strip(), email,
                     f.get("bank_details", "").strip(), f.get("terms", "").strip(),
                     g.shop["id"]))
     flash("Shop details saved", "ok")
@@ -73,12 +82,30 @@ def target():
 
 # ---- Order sources and payment methods: the shop's own lists ----
 
+ANCHORS = {"source": "sources", "method": "payments", "category": "categories",
+           "supplier": "suppliers"}
+
+
 def kind_of(word):
-    """The page addresses are /settings/sources/... and /settings/payments/..."""
-    return {"sources": "source", "payments": "method"}.get(word) or abort(404)
+    """The page addresses are /settings/sources/..., /settings/payments/...,
+    /settings/categories/... and /settings/suppliers/..."""
+    return {"sources": "source", "payments": "method", "categories": "category",
+            "suppliers": "supplier"}.get(word) or abort(404)
 
 
-@bp.route("/settings/<any(sources,payments):word>", methods=("POST",))
+@bp.route("/settings/<any(sources,payments):word>/default", methods=("POST",))
+@login_required
+def set_default_choice(word):
+    kind = kind_of(word)
+    error = choices.set_default(get_db(), g.shop["id"], kind, request.form.get("name", ""))
+    if error:
+        flash(error)
+    else:
+        flash("Starting choice saved. New bills begin with it.", "ok")
+    return redirect(url_for("settings.index") + "#" + ANCHORS[kind])
+
+
+@bp.route("/settings/<any(sources,payments,categories,suppliers):word>", methods=("POST",))
 @login_required
 def add_choice(word):
     kind = kind_of(word)
@@ -87,16 +114,16 @@ def add_choice(word):
         flash(error)
     else:
         flash(f"\"{' '.join(request.form['name'].split())}\" added", "ok")
-    return redirect(url_for("settings.index") + "#" + ("sources" if kind == "source" else "payments"))
+    return redirect(url_for("settings.index") + "#" + ANCHORS[kind])
 
 
-@bp.route("/settings/<any(sources,payments):word>/<int:choice_id>/delete", methods=("POST",))
+@bp.route("/settings/<any(sources,payments,categories,suppliers):word>/<int:choice_id>/delete", methods=("POST",))
 @login_required
 def delete_choice(word, choice_id):
     kind = kind_of(word)
     if not choices.remove(get_db(), g.shop["id"], kind, choice_id):
         abort(404)
-    return redirect(url_for("settings.index") + "#" + ("sources" if kind == "source" else "payments"))
+    return redirect(url_for("settings.index") + "#" + ANCHORS[kind])
 
 
 # ---- Saved offers ----

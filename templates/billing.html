@@ -46,9 +46,6 @@
         <input id="customer" placeholder="Search or type a name (blank = walk-in)" autocomplete="off">
         <div id="customer-results" class="pick-list floating" hidden></div>
       </div>
-      <label class="f">Other phone (optional)
-        <input id="other-phone" placeholder="Landline or second number" maxlength="40" autocomplete="off">
-      </label>
       <label class="f">Customer location (optional)
         <input id="location" placeholder="e.g. Indiranagar, Bengaluru">
       </label>
@@ -64,7 +61,7 @@
         <label for="source">Order came through</label>
         <select id="source">
           <option value="">Choose…</option>
-          {% for s in order_sources %}<option>{{ s }}</option>{% endfor %}
+          {% for s in order_sources %}<option{{ ' selected' if s == default_source }}>{{ s }}</option>{% endfor %}
         </select>
         <input id="source-other" class="other-input" placeholder="Type the order source" hidden>
       </div>
@@ -104,7 +101,7 @@
       <div id="single-payment">
         <select id="pay-mode" aria-label="Payment mode">
           <option value="">Choose payment mode…</option>
-          {% for m in payment_modes %}<option>{{ m }}</option>{% endfor %}
+          {% for m in payment_modes %}<option{{ ' selected' if m == default_method }}>{{ m }}</option>{% endfor %}
         </select>
         <input id="pay-other" class="other-input" placeholder="Type the payment mode" hidden>
       </div>

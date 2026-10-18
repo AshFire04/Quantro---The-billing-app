@@ -15,32 +15,43 @@
 {% else %}
   <form method="get" class="toolbar filter-form">
     <input name="q" value="{{ q }}" placeholder="Search by name, phone or location" aria-label="Search">
+    <label>Type
+      <select name="type">
+        <option value="">All</option>
+        {% for t in customer_types %}<option {{ 'selected' if ctype == t }}>{{ t }}</option>{% endfor %}
+      </select>
+    </label>
     <label>Sort by
       <select name="sort">
+        <option value="last" {{ 'selected' if sort == 'last' }}>Last bill (newest first)</option>
         <option value="name" {{ 'selected' if sort == 'name' }}>Name (A to Z)</option>
         <option value="high" {{ 'selected' if sort == 'high' }}>Total billed: highest to lowest</option>
         <option value="low" {{ 'selected' if sort == 'low' }}>Total billed: lowest to highest</option>
       </select>
     </label>
+    <label>From <input type="date" name="date_from" value="{{ date_from }}"></label>
+    <label>To <input type="date" name="date_to" value="{{ date_to }}"></label>
     <button class="btn primary" type="submit">Apply</button>
-    {% if q or sort in ('high', 'low') %}<a class="btn" href="{{ url_for('customers.index') }}">Clear</a>{% endif %}
+    {% if request.args %}<a class="btn" href="{{ url_for('customers.index') }}">This month</a>{% endif %}
   </form>
+  {% if date_from or date_to %}
+  <p class="muted">Showing customers with bills {% if date_from %}from {{ date_from | fdate }}{% endif %}{% if date_to %} to {{ date_to | fdate }}{% endif %}. Bills and totals count only that period. Clear both dates and press Apply to see everyone.</p>
+  {% endif %}
 
   {% if customers %}
   <div class="card table-wrap">
     <table>
       <thead>
-        <tr><th>Customer</th><th>Phone</th><th>Other phone</th><th>Location</th><th>Type</th><th class="num">Bills</th><th class="num">Total billed</th><th>Last bill</th></tr>
+        <tr><th>Customer</th><th>Phone</th><th>Location</th><th>Type</th><th class="num">Bills</th><th class="num">Total billed</th><th>Last bill</th></tr>
       </thead>
       <tbody>
       {% for c in customers %}
         <tr>
           <td><a href="{{ url_for('customers.detail', customer_id=c.id) }}">{{ c.name }}</a></td>
           <td class="mono">{% if c.phone %}{{ c.phone }}{% elif c.legacy %}<span class="muted">No phone, older bill</span>{% else %}<span class="muted">No phone</span>{% endif %}</td>
-          <td class="mono">{{ c.other_phone }}</td>
           <td>{{ c.location }}</td>
           <td>{{ c.customer_type }}</td>
-          <td class="num mono">{% if c.bill_count %}<a href="{{ url_for('bills.index', customer=c.id) }}">{{ c.bill_count }}</a>{% else %}0{% endif %}</td>
+          <td class="num mono">{% if c.bill_count %}<a href="{{ url_for('bills.index', customer=c.id, date_from=date_from, date_to=date_to) }}">{{ c.bill_count }}</a>{% else %}0{% endif %}</td>
           <td class="num mono">{{ c.spent | rupees }}</td>
           <td>{{ c.last_bill | fdate }}</td>
         </tr>
@@ -49,7 +60,7 @@
     </table>
   </div>
   {% else %}
-  <div class="card empty"><p>No customers match that search.</p></div>
+  <div class="card empty"><p>No customers match these filters.</p></div>
   {% endif %}
 {% endif %}
 {% endblock %}

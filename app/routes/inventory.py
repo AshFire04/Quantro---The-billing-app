@@ -5,6 +5,7 @@ from ..auth import login_required
 from ..db import get_db
 from decimal import Decimal, InvalidOperation
 
+from ..services import choices
 from ..services.money import paise_to_input, rupees_to_paise
 
 bp = Blueprint("inventory", __name__, url_prefix="/inventory")
@@ -34,8 +35,19 @@ def get_product(product_id):
 def index():
     q = request.args.get("q", "").strip()
     status = request.args.get("status", "all")
+    db = get_db()
+    category_options = choices.product_filter_options(db, g.shop["id"], "category")
+    supplier_options = choices.product_filter_options(db, g.shop["id"], "supplier")
+    category = request.args.get("category", "")
+    supplier = request.args.get("supplier", "")
     sql = "SELECT * FROM products WHERE shop_id = ? AND active = 1"
     params = [g.shop["id"]]
+    if category in category_options:
+        sql += " AND category = ?"
+        params.append(category)
+    if supplier in supplier_options:
+        sql += " AND supplier = ?"
+        params.append(supplier)
     if q:
         sql += " AND (name LIKE ? OR code LIKE ?)"
         params += [f"%{q}%", f"%{q}%"]
@@ -50,7 +62,15 @@ def index():
         "SELECT 1 FROM products WHERE shop_id = ? AND active = 1",
         (g.shop["id"],)).fetchone() is not None
     return render_template("inventory.html", products=products, q=q,
-                           status=status, has_any=has_any)
+                           status=status, has_any=has_any, category=category, supplier=supplier,
+                           category_options=category_options, supplier_options=supplier_options)
+
+
+def form_lists():
+    """The choices the product form's Category and Supplier dropdowns offer."""
+    db = get_db()
+    return {"category_choices": choices.names(db, g.shop["id"], "category"),
+            "supplier_choices": choices.names(db, g.shop["id"], "supplier")}
 
 
 def read_form(product_id=None):
@@ -63,6 +83,19 @@ def read_form(product_id=None):
         "hsn": f.get("hsn", "").strip(),
         "supplier": f.get("supplier", "").strip(),
     }
+    # Category and supplier are picked from the lists kept in Shop Details. A product that
+    # already carries a name the list no longer has can keep it.
+    kept = {"category": "", "supplier": ""}
+    if product_id:
+        old = get_db().execute("SELECT category, supplier FROM products WHERE id = ? AND shop_id = ?",
+                               (product_id, g.shop["id"])).fetchone()
+        if old:
+            kept = {"category": old["category"], "supplier": old["supplier"]}
+    for field, kind in (("category", "category"), ("supplier", "supplier")):
+        if values[field] and values[field] not in choices.names(get_db(), g.shop["id"], kind) \
+                and values[field] != kept[field]:
+            return values, (f"Please choose a {field} from the list. "
+                            f"Add new ones in Shop Details first.")
     if values["hsn"] and not (values["hsn"].isdigit() and len(values["hsn"]) <= 8):
         return values, "The HSN/SAC number should be digits only, up to 8 of them"
     try:
@@ -125,7 +158,7 @@ def new():
                      values["hsn"], values["supplier"], values["cost_price"], values["gst_rate"]))
             return redirect(url_for("inventory.index"))
         values = request.form
-    return render_template("product_form.html", product=values, editing=False)
+    return render_template("product_form.html", product=values, editing=False, **form_lists())
 
 
 @bp.route("/<int:product_id>/edit", methods=("GET", "POST"))
@@ -137,7 +170,7 @@ def edit(product_id):
         if error:
             flash(error)
             return render_template("product_form.html", product=request.form,
-                                   editing=True, product_id=product_id)
+                                   editing=True, product_id=product_id, **form_lists())
         db = get_db()
         with db:
             db.execute(
@@ -152,7 +185,7 @@ def edit(product_id):
                    cost_price=paise_to_input(product["cost_price"]) if product["cost_price"] else "",
                    gst_rate="%g" % product["gst_rate"] if product["gst_rate"] is not None else "")
     return render_template("product_form.html", product=product, editing=True,
-                           product_id=product_id)
+                           product_id=product_id, **form_lists())
 
 
 @bp.route("/<int:product_id>/remove", methods=("POST",))

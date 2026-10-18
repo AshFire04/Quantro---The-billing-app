@@ -40,7 +40,9 @@ def index():
                            order_sources=choices.with_other(get_db(), g.shop["id"], "source"),
                            places=PLACES, default_place=DEFAULT_PLACE,
                            customer_types=CUSTOMER_TYPES,
-                           editing=None, prefill=None, skipped=[], offers=active_offers())
+                           editing=None, prefill=None, skipped=[], offers=active_offers(),
+                           default_source=choices.default_of(get_db(), g.shop["id"], "source"),
+                           default_method=choices.default_of(get_db(), g.shop["id"], "method"))
 
 
 def split_other(stored, allowed):
@@ -97,7 +99,7 @@ def edit(bill_id):
     prefill = {
         "replaces": bill_id,
         "customer": old["customer_name"], "phone": old["customer_phone"],
-        "other_phone": old["customer_other_phone"], "customer_id": old["customer_id"],
+        "customer_id": old["customer_id"],
         "location": old["customer_location"], "place": old["place_of_sale"],
         "source": source, "source_other": source_other,
         "whole_discount": "%g" % old["whole_discount_pct"] if old["whole_discount_pct"] else "",
@@ -113,7 +115,8 @@ def edit(bill_id):
                            order_sources=choices.with_other(get_db(), g.shop["id"], "source"),
                            places=PLACES, default_place=DEFAULT_PLACE,
                            customer_types=CUSTOMER_TYPES,
-                           editing=old, prefill=prefill, skipped=skipped, offers=offers)
+                           editing=old, prefill=prefill, skipped=skipped, offers=offers,
+                           default_source="", default_method="")
 
 
 @bp.route("/billing/save", methods=("POST",))
@@ -130,7 +133,6 @@ def save():
         bill_id = save_bill(get_db(), g.shop["id"], data.get("items", []),
                             customer_name=str(data.get("customer", "")),
                             customer_phone=str(data.get("phone", "")),
-                            customer_other_phone=str(data.get("other_phone", "")),
                             customer_id=data.get("customer_id"),
                             place_of_sale=str(data.get("place_of_sale", "")),
                             order_source=str(data.get("order_source", "")),

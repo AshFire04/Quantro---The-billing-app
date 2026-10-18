@@ -12,7 +12,10 @@ CREATE TABLE IF NOT EXISTS shops (
     terms TEXT DEFAULT '',
     next_invoice_number INTEGER NOT NULL DEFAULT 1,
     monthly_target INTEGER NOT NULL DEFAULT 0,  -- paise; the sales goal for a month (0 = not set)
-    logo TEXT NOT NULL DEFAULT ''               -- file name of the shop's logo in instance/uploads/
+    logo TEXT NOT NULL DEFAULT '',              -- file name of the shop's logo in instance/uploads/
+    email TEXT NOT NULL DEFAULT '',
+    default_source TEXT NOT NULL DEFAULT '',    -- what a new bill's "Order came through" starts as
+    default_method TEXT NOT NULL DEFAULT ''     -- what a new bill's payment method starts as
 );
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -84,6 +87,18 @@ CREATE TABLE IF NOT EXISTS order_sources (   -- the shop's "Order came through" 
     position INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS payment_methods (  -- the shop's payment method choices
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    shop_id INTEGER NOT NULL REFERENCES shops(id),
+    name TEXT NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS product_categories (  -- the shop's own product categories
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    shop_id INTEGER NOT NULL REFERENCES shops(id),
+    name TEXT NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS suppliers (            -- the shop's own suppliers
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     shop_id INTEGER NOT NULL REFERENCES shops(id),
     name TEXT NOT NULL,
@@ -241,7 +256,22 @@ def migrate_customers(db):
 def init_db():
     db = get_db()
     had_lists = db.execute("SELECT 1 FROM sqlite_master WHERE name = 'payment_methods'").fetchone()
+    had_catalog = db.execute("SELECT 1 FROM sqlite_master WHERE name = 'suppliers'").fetchone()
     db.executescript(SCHEMA)
+    if not had_catalog:
+        # Shops that already have products keep the categories and suppliers they typed,
+        # now as a list they can manage in Shop Details.
+        for shop in db.execute("SELECT id FROM shops").fetchall():
+            for table, column in (("product_categories", "category"), ("suppliers", "supplier")):
+                try:
+                    found = [r[0] for r in db.execute(
+                        f"SELECT DISTINCT {column} FROM products WHERE shop_id = ? AND {column} != '' "
+                        f"ORDER BY {column} COLLATE NOCASE", (shop["id"],))]
+                except sqlite3.OperationalError:     # a very old products table with no supplier yet
+                    found = []
+                for position, name in enumerate(found):
+                    db.execute(f"INSERT INTO {table} (shop_id, name, position) VALUES (?, ?, ?)",
+                               (shop["id"], name, position))
     if not had_lists:
         # Shops that already exist keep exactly what they had: the old fixed choices, plus
         # anything their bills used, so no old bill is left without its choice.
@@ -296,8 +326,9 @@ def init_db():
     line_columns = [row["name"] for row in db.execute("PRAGMA table_info(bill_lines)")]
     if "cost" not in line_columns:
         db.execute("ALTER TABLE bill_lines ADD COLUMN cost INTEGER NOT NULL DEFAULT 0")
-    if "logo" not in shop_columns:
-        db.execute("ALTER TABLE shops ADD COLUMN logo TEXT NOT NULL DEFAULT ''")
+    for name in ("logo", "email", "default_source", "default_method"):
+        if name not in shop_columns:
+            db.execute(f"ALTER TABLE shops ADD COLUMN {name} TEXT NOT NULL DEFAULT ''")
     payment_columns = [row["name"] for row in db.execute("PRAGMA table_info(payments)")]
     if "paid_at" not in payment_columns:
         db.execute("ALTER TABLE payments ADD COLUMN paid_at TEXT NOT NULL DEFAULT ''")

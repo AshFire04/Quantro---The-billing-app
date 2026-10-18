@@ -9,6 +9,8 @@
   {%- elif name == 'qr' -%}<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><path d="M14 14h3v3h-3zM17 20h4M20 14v3"></path></svg>
   {%- elif name == 'offers' -%}<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12V4h8l10 10-8 8z"></path><circle cx="7.5" cy="8.5" r="1.2"></circle></svg>
   {%- elif name == 'source' -%}<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path></svg>
+  {%- elif name == 'category' -%}<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+  {%- elif name == 'supplier' -%}<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h11v10H3z"></path><path d="M14 9h4l3 3v4h-7z"></path><circle cx="7" cy="18" r="1.8"></circle><circle cx="17" cy="18" r="1.8"></circle></svg>
   {%- elif name == 'payment' -%}<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M3 10h18"></path></svg>
   {%- endif -%}
 {% endmacro %}
@@ -21,6 +23,21 @@
     </div>
   </div>
 {% endmacro %}
+{% macro default_picker(items, word, current, noun) %}
+  {% if items %}
+  <form method="post" action="{{ url_for('settings.set_default_choice', word=word) }}" class="sd-default">
+    <label class="sd-field">
+      <span>Default value</span>
+      <select name="name" onchange="this.form.submit()">
+        <option value="">None: choose on each bill</option>
+        {% for c in items %}<option{{ ' selected' if c.name == current }}>{{ c.name }}</option>{% endfor %}
+      </select>
+      <small>New bills start with this {{ noun }} already chosen. You can still change it on a bill.</small>
+    </label>
+    <noscript><button type="submit" class="sd-btn">Save default</button></noscript>
+  </form>
+  {% endif %}
+{% endmacro %}
 {% macro chip_list(items, word, noun) %}
   <ul class="sd-chips">
     {% for c in items %}
@@ -32,7 +49,7 @@
       </form>
     </li>
     {% else %}
-    <li class="sd-none">No {{ noun }} yet. You can still type one on the bill with "Other".</li>
+    <li class="sd-none">No {{ noun }} yet.{% if word in ('sources', 'payments') %} You can still type one on the bill with "Other".{% endif %}</li>
     {% endfor %}
   </ul>
 {% endmacro %}
@@ -53,6 +70,8 @@
       <a href="#offers">{{ icon('offers') }}Offers</a>
       <a href="#sources">{{ icon('source') }}Order source</a>
       <a href="#payments">{{ icon('payment') }}Payment methods</a>
+      <a href="#categories">{{ icon('category') }}Categories</a>
+      <a href="#suppliers">{{ icon('supplier') }}Suppliers</a>
     </nav>
   </aside>
 
@@ -73,6 +92,10 @@
           <label class="sd-field">
             <span>Website</span>
             <input type="text" name="website" id="sd-website" value="{{ g.shop['website'] }}" placeholder="e.g. www.sajjahome.com">
+          </label>
+          <label class="sd-field">
+            <span>Email id</span>
+            <input type="email" name="email" id="sd-email" value="{{ g.shop['email'] }}" placeholder="e.g. hello@sajjahome.com">
           </label>
         </div>
         <div class="sd-grid sd-grid-280">
@@ -131,7 +154,7 @@
     </section>
 
     <section id="qr" class="sd-card" aria-labelledby="qr-h">
-      {{ section_head('qr', 'qr', 'QR codes', 'PNG or JPG, under 1 MB each. They print on the bill with their label.') }}
+      {{ section_head('qr', 'qr', 'QR codes', 'PNG or JPG, under 1 MB each. Up to ' ~ max_qr_codes ~ ' QR codes print on the bill with their label.') }}
       <ul class="sd-qrs">
         {% for q in qr_codes %}
         <li>
@@ -238,6 +261,7 @@
       <section id="sources" class="sd-card" aria-labelledby="sources-h">
         {{ section_head('sources', 'source', 'Order came through', 'Where your orders come from. These show as choices on a bill.') }}
         {{ chip_list(sources, 'sources', 'sources') }}
+        {{ default_picker(sources, 'sources', default_source, 'order source') }}
         <form method="post" action="{{ url_for('settings.add_choice', word='sources') }}" class="sd-row sd-top-rule">
           <label class="sd-field" style="flex:1 1 200px">
             <span>Add a source</span>
@@ -250,6 +274,7 @@
       <section id="payments" class="sd-card" aria-labelledby="payments-h">
         {{ section_head('payments', 'payment', 'Payment method', 'How customers pay. These show as choices on a bill.') }}
         {{ chip_list(methods, 'payments', 'payment methods') }}
+        {{ default_picker(methods, 'payments', default_method, 'payment method') }}
         <form method="post" action="{{ url_for('settings.add_choice', word='payments') }}" class="sd-row sd-top-rule">
           <label class="sd-field" style="flex:1 1 200px">
             <span>Add a method</span>
@@ -258,6 +283,33 @@
           <button type="submit" class="sd-btn">Add method</button>
         </form>
         <p class="sd-small">You can still type anything else on the bill itself.</p>
+      </section>
+    </div>
+
+    <div class="sd-pair">
+      <section id="categories" class="sd-card" aria-labelledby="categories-h">
+        {{ section_head('categories', 'category', 'Product categories', 'These become the Category choices when you add a product.') }}
+        {{ chip_list(categories_list, 'categories', 'categories') }}
+        <form method="post" action="{{ url_for('settings.add_choice', word='categories') }}" class="sd-row sd-top-rule">
+          <label class="sd-field" style="flex:1 1 200px">
+            <span>Add a category</span>
+            <input type="text" name="name" placeholder="e.g. Bedsheets" maxlength="40" required>
+          </label>
+          <button type="submit" class="sd-btn">Add category</button>
+        </form>
+        <p class="sd-small">Removing one doesn't change products that already use it.</p>
+      </section>
+      <section id="suppliers" class="sd-card" aria-labelledby="suppliers-h">
+        {{ section_head('suppliers', 'supplier', 'Suppliers', 'These become the Supplier choices when you add a product.') }}
+        {{ chip_list(suppliers, 'suppliers', 'suppliers') }}
+        <form method="post" action="{{ url_for('settings.add_choice', word='suppliers') }}" class="sd-row sd-top-rule">
+          <label class="sd-field" style="flex:1 1 200px">
+            <span>Add a supplier</span>
+            <input type="text" name="name" placeholder="e.g. Mehta Traders" maxlength="40" required>
+          </label>
+          <button type="submit" class="sd-btn">Add supplier</button>
+        </form>
+        <p class="sd-small">Removing one doesn't change products that already use it.</p>
       </section>
     </div>
 
@@ -271,6 +323,7 @@
         <span class="sd-paper-name" id="pv-name">{{ g.shop['name'] }}</span>
         <span id="pv-phone">{{ g.shop['phone'] }}</span>
         <span id="pv-website">{{ g.shop['website'] }}</span>
+        <span id="pv-email">{{ g.shop['email'] }}</span>
       </div>
       <div class="sd-dash"></div>
       <div class="sd-bars" aria-hidden="true">
@@ -316,6 +369,7 @@
   follow("sd-name", v => document.getElementById("pv-name").textContent = v);
   follow("sd-phone", v => document.getElementById("pv-phone").textContent = v);
   follow("sd-website", v => document.getElementById("pv-website").textContent = v);
+  follow("sd-email", v => document.getElementById("pv-email").textContent = v);
   follow("sd-bank", v => lines(document.getElementById("pv-bank"), v));
   follow("sd-terms", v => lines(document.getElementById("pv-terms"), v));
 

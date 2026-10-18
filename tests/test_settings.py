@@ -105,11 +105,13 @@ def test_no_file_chosen(client):
     assert "choose an image" in seen(res)
 
 
-def test_at_most_six_qr_codes(client):
+def test_at_most_three_qr_codes(client):
     create(client)
-    for i in range(6):
+    for i in range(3):
         upload(client, f"QR {i}")
-    assert "up to 6 QR codes" in seen(upload(client, "One too many"))
+    assert "up to 3 QR codes" in seen(upload(client, "One too many"))
+    page = seen(client.get("/settings"))
+    assert "Add a QR code" not in page and "up to 3 QR codes" in page
 
 
 def test_another_shop_cannot_see_or_remove_my_qr_code(client, app):

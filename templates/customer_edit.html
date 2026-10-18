@@ -13,9 +13,6 @@
       <label>Customer Name{% if bill.customer_id %}*{% endif %}
         <input name="name" value="{{ v.name }}" {{ 'required' if bill.customer_id }}>
       </label>
-      <label>Other phone (landline or second number, optional)
-        <input name="other_phone" value="{{ v.other_phone }}" maxlength="40" placeholder="e.g. 080 1234 5678">
-      </label>
       <label>Customer location (optional)
         <input name="location" value="{{ v.location }}" placeholder="e.g. Indiranagar, Bengaluru">
       </label>

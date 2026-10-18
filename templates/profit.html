@@ -12,7 +12,7 @@
   <label>From <input type="date" name="date_from" value="{{ date_from }}"></label>
   <label>To <input type="date" name="date_to" value="{{ date_to }}"></label>
   <button class="btn primary" type="submit">Apply</button>
-  {% if date_from or date_to %}<a class="btn" href="{{ url_for('profit.index') }}">Clear</a>{% endif %}
+  {% if request.args %}<a class="btn" href="{{ url_for('profit.index') }}">This month</a>{% endif %}
 </form>
 
 <div class="tiles">
