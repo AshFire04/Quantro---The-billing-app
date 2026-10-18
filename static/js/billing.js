@@ -128,9 +128,20 @@ function wholeHundredths(subtotal) {
   return offer ? offerHundredths(offer) : 0;
 }
 
+// Money left out of the whole-bill offer because the offer says "except this category".
+function skippedAmount(subtotal) {
+  if (isTyped($("whole-discount").value)) return 0;           // typed by hand: applies to everything
+  const offer = bestWholeOffer(subtotal);
+  const except = offer ? (offer.exclude || "").trim().toLowerCase() : "";
+  if (!except) return 0;
+  return Object.keys(bill).reduce((sum, id) =>
+    sum + ((byId[id].category || "").trim().toLowerCase() === except ? lineAmount(id) : 0), 0);
+}
+
 function computeTotals() {
   const subtotal = Object.keys(bill).reduce((sum, id) => sum + lineAmount(id), 0);
-  const afterWhole = takeOff(subtotal, wholeHundredths(subtotal));
+  const skipped = skippedAmount(subtotal);
+  const afterWhole = takeOff(subtotal - skipped, wholeHundredths(subtotal)) + skipped;
   const shipping = Math.max(Math.round((parseFloat($("shipping").value) || 0) * 100), 0);
   const exact = afterWhole + shipping;
   const total = Math.floor((exact + 50) / 100) * 100;           // whole rupees, half up

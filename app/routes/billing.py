@@ -18,7 +18,7 @@ def active_offers():
     """The shop's switched-on offers, in the shape the Billing screen needs."""
     return [{"id": o["id"], "name": o["name"], "pct": o["percentage"],
              "applies_to": o["applies_to"], "category": o["category"],
-             "min_amount": o["min_amount"]}
+             "min_amount": o["min_amount"], "exclude": o["exclude_category"]}
             for o in get_db().execute(
                 "SELECT * FROM offers WHERE shop_id = ? AND active = 1 ORDER BY id",
                 (g.shop["id"],)).fetchall()]
@@ -98,6 +98,11 @@ def edit(bill_id):
     still_on = {o["id"] for o in offers}
     picked = [int(i) for i in old["offer_ids"].split(",") if i and int(i) in still_on]
     source, source_other = split_other(old["order_source"], source_choices)
+    # A whole-bill discount that came from a ticked offer is left blank, so the offer (and the
+    # category it leaves out) works it out again instead of it being treated as typed by hand.
+    named = [n.strip() for n in old["offers_applied"].split(",")]
+    from_offer = any(o["applies_to"] == "bill" and o["name"] in named and o["pct"] == old["whole_discount_pct"]
+                     for o in offers if o["id"] in picked)
     prefill = {
         "replaces": None if is_draft else bill_id,
         "draft_id": bill_id if is_draft else None,
@@ -105,7 +110,8 @@ def edit(bill_id):
         "customer_id": old["customer_id"],
         "location": old["customer_location"], "place": old["place_of_sale"],
         "source": source, "source_other": source_other,
-        "whole_discount": "%g" % old["whole_discount_pct"] if old["whole_discount_pct"] else "",
+        "whole_discount": ("" if from_offer else "%g" % old["whole_discount_pct"])
+                          if old["whole_discount_pct"] else "",
         "shipping": paise_to_input(old["shipping"]) if old["shipping"] else "",
         "items": items, "payments": payments, "offer_ids": picked,
         "due_amount": paise_to_input(old["due_amount"]) if old["due_amount"] else "",

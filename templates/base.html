@@ -15,11 +15,11 @@
     <nav>
       <a href="{{ url_for('home.index') }}">Home</a>
       <a href="{{ url_for('billing.index') }}">Billing</a>
-      <a href="{{ url_for('inventory.index') }}">Inventory</a>
       <a href="{{ url_for('bills.index') }}">Past bills</a>
       <a href="{{ url_for('customers.index') }}">Customer Details</a>
+      <a href="{{ url_for('inventory.index') }}">Inventory</a>
       <a href="{{ url_for('profit.index') }}">Profit</a>
-      <a href="{{ url_for('settings.index') }}">Shop Details</a>
+      <a class="nav-end" href="{{ url_for('settings.index') }}">Shop Details</a>
     </nav>
     <span class="who">{{ g.shop['name'] }} · <a href="{{ url_for('auth.logout') }}">Sign out</a></span>
   </header>

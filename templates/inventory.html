@@ -4,13 +4,17 @@
 {% block content %}
 <div class="page-head">
   <h1>Inventory</h1>
-  <a class="btn primary" href="{{ url_for('inventory.new') }}">Add product</a>
+  <span>
+    <a class="btn" href="{{ url_for('inventory.import_products') }}">Import from Excel</a>
+    <a class="btn primary" href="{{ url_for('inventory.new') }}">Add product</a>
+  </span>
 </div>
 
 {% if not has_any %}
   <div class="card empty">
     <p>No products yet.</p>
     <a class="btn primary" href="{{ url_for('inventory.new') }}">Add product</a>
+    <a class="btn" href="{{ url_for('inventory.import_products') }}">Import from Excel</a>
   </div>
 {% else %}
   <form method="get" class="toolbar filter-form">

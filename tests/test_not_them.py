@@ -27,9 +27,10 @@ def test_not_them_clears_the_customer_but_keeps_the_items(client, shop):
 
     # Saving what the page sent leaves the bill with no customer record, and its items.
     sent.update(order_source="Walk-in", payments=CASH)
+    assert client.post("/billing/save", json=sent).status_code == 400              # a name is needed
+    sent["customer"] = "Meena"
     assert client.post("/billing/save", json=sent).status_code == 200
     bill = shop.execute("SELECT * FROM bills").fetchone()
-    assert bill["customer_id"] == 0 and bill["customer_phone"] == ""
-    assert shop.execute("SELECT COUNT(*) FROM customers").fetchone()[0] == 0
+    assert bill["customer_name"] == "Meena" and bill["customer_phone"] == ""       # not linked to Asha
     assert shop.execute("SELECT quantity FROM bill_lines WHERE bill_id = ?", (bill["id"],)).fetchone()[0] == 1
     assert stock_of(shop, "Tray") == 9

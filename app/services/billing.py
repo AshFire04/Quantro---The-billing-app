@@ -148,6 +148,7 @@ def load_offers(db, shop_id, offer_ids):
                        "pct": Decimal(str(offer["percentage"])),
                        "applies_to": offer["applies_to"],
                        "category": offer["category"].strip().lower(),
+                       "exclude": offer["exclude_category"].strip().lower(),
                        "min_amount": offer["min_amount"]})
     return offers
 
@@ -189,6 +190,7 @@ def price_details(db, shop_id, items, whole_discount_pct=None, shipping=0, offer
 
     applied = {}                                    # offer id -> name, in the order they won
     lines = []
+    categories = []                                 # each line's category, same order as lines
     for product_id, (quantity, discount) in wanted.items():
         product = db.execute(
             "SELECT * FROM products WHERE id = ? AND shop_id = ? AND active = 1",
@@ -206,6 +208,7 @@ def price_details(db, shop_id, items, whole_discount_pct=None, shipping=0, offer
             discount = best["pct"] if best else Decimal(0)
             if best and best["pct"] > 0:
                 applied[best["id"]] = best["name"]
+        categories.append(product["category"].strip().lower())
         lines.append({
             "product_id": product_id,
             "code": product["code"],
@@ -217,6 +220,7 @@ def price_details(db, shop_id, items, whole_discount_pct=None, shipping=0, offer
             "line_amount": take_percent_off(product["price"] * quantity, discount),
         })
     subtotal = sum(line["line_amount"] for line in lines)
+    skipped = 0                                     # items an offer's "except category" leaves alone
     if whole_discount_pct is None:
         qualifying = [o for o in offers if o["applies_to"] == "bill"
                       and subtotal >= o["min_amount"]]
@@ -224,7 +228,10 @@ def price_details(db, shop_id, items, whole_discount_pct=None, shipping=0, offer
         whole_discount_pct = best["pct"] if best else Decimal(0)
         if best and best["pct"] > 0:
             applied[best["id"]] = best["name"]
-    exact = take_percent_off(subtotal, whole_discount_pct) + shipping
+            if best["exclude"]:
+                skipped = sum(line["line_amount"] for line, c in zip(lines, categories)
+                              if c == best["exclude"])
+    exact = take_percent_off(subtotal - skipped, whole_discount_pct) + skipped + shipping
     total = (exact + 50) // 100 * 100               # rounded off to the nearest rupee, half up
     return {"lines": lines, "total": total, "round_off": total - exact,
             "whole_pct": whole_discount_pct, "offers_applied": list(applied.values())}

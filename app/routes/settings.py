@@ -134,6 +134,7 @@ def read_offer_form():
     name = f.get("name", "").strip()
     applies_to = f.get("applies_to", "")
     category = f.get("category", "").strip()
+    exclude = f.get("exclude_category", "").strip()
     try:
         pct = parse_percent(f.get("percentage", ""), "The offer percentage")
         if pct <= 0:
@@ -153,8 +154,10 @@ def read_offer_form():
         minimum = 0                       # a minimum only makes sense for whole-bill offers
     else:
         category = ""
+    if applies_to == "category":
+        exclude = ""                      # leaving a category out only makes sense for all-items offers
     return {"name": name, "pct": float(pct), "applies_to": applies_to,
-            "category": category, "minimum": minimum}, None
+            "category": category, "minimum": minimum, "exclude": exclude}, None
 
 
 @bp.route("/settings/offers", methods=("POST",))
@@ -167,9 +170,9 @@ def add_offer():
         db = get_db()
         with db:
             db.execute("INSERT INTO offers (shop_id, name, percentage, applies_to, category, "
-                       "min_amount) VALUES (?, ?, ?, ?, ?, ?)",
+                       "min_amount, exclude_category) VALUES (?, ?, ?, ?, ?, ?, ?)",
                        (g.shop["id"], values["name"], values["pct"], values["applies_to"],
-                        values["category"], values["minimum"]))
+                        values["category"], values["minimum"], values["exclude"]))
         flash(f"Offer \"{values['name']}\" added", "ok")
     return redirect(url_for("settings.index"))
 

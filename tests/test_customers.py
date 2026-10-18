@@ -114,17 +114,17 @@ def test_changing_one_bills_phone_leaves_the_other_bill_unchanged(client, app):
     assert "9876543210" in page(client, "/bills/2") and "9123456780" not in page(client, "/bills/2")
 
 
-def test_a_bill_with_no_phone_and_no_name_is_a_walk_in(client, app):
+def test_a_bill_with_no_name_is_refused(client, app):
     setup(client)
-    post_bill(client, "", "")
-    post_bill(client, "   ", "")
+    for name in ("", "   "):
+        res = client.post("/billing/save", json={
+            "items": [{"product_id": 1, "quantity": 1}], "customer": name, "phone": "",
+            "order_source": "Walk-in", "payments": [{"mode": "Cash"}]})
+        assert res.status_code == 400 and "customer's name" in res.get_json()["error"]
     db = database(app)
+    assert db.execute("SELECT COUNT(*) FROM bills").fetchone()[0] == 0
     assert db.execute("SELECT COUNT(*) FROM customers").fetchone()[0] == 0
-    assert [tuple(r) for r in db.execute("SELECT customer_name, customer_id FROM bills")] == [
-        ("Walk-in customer", 0), ("Walk-in customer", 0)]
-    assert "Walk-in customer" in page(client, "/bills/1")
     assert "No customers yet" in page(client, "/customers")
-    assert client.get("/customers/search?q=walk").get_json()["customers"] == []
 
 
 def test_a_name_without_a_phone_makes_a_customer_without_a_phone(client, app):
@@ -307,7 +307,11 @@ def test_edit_customer_other_state_and_checks(client):
 def test_edit_customer_works_on_cancelled_and_walk_in_bills_and_stays_in_the_shop(client, app):
     setup(client)
     post_bill(client, "Asha")
-    post_bill(client, "")
+    post_bill(client, "Temp")
+    db = sqlite3.connect(app.config["DATABASE"])          # an older walk-in bill
+    db.execute("UPDATE bills SET customer_id = 0, customer_name = 'Walk-in customer' WHERE id = 2")
+    db.commit()
+    db.close()
     client.post("/bills/1/cancel")
     assert client.get("/bills/1/customer").status_code == 200
     client.post("/bills/2/customer", data={"name": "", "phone": "", "place": "Karnataka",

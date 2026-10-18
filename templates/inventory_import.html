@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Import products{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Import products from Excel</h1>
+  <a class="btn" href="{{ url_for('inventory.index') }}">Back to Inventory</a>
+</div>
+
+{% if result %}
+<div class="card">
+  <h2>{{ result.added }} product{{ '' if result.added == 1 else 's' }} added</h2>
+  {% if result.new_lists %}<p class="muted">Added to your lists in Shop Details: {{ result.new_lists | join(", ") }}.</p>{% endif %}
+  {% if result.skipped %}
+  <p>{{ result.skipped | length }} row{{ '' if result.skipped | length == 1 else 's' }} not imported:</p>
+  <ul>
+    {% for row, why in result.skipped %}<li>Row {{ row }}: {{ why }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="card">
+  <p>Choose an Excel (.xlsx) file whose first row has these column names:</p>
+  <p><b>Name</b> and <b>Selling Price</b> are needed. These are optional:
+     Item Code/Bar Code, Category, Stock, Low-stock level, HSN/SAC number, Supplier, Cost price, GST rate.</p>
+  <ul class="muted">
+    <li>A product whose Item Code/Bar Code is already used is skipped, so nothing is overwritten.</li>
+    <li>A Category or Supplier that is not in your lists yet is added to them.</li>
+    <li>A blank Stock counts as 0, and a blank Low-stock level as 5.</li>
+  </ul>
+  <p><a href="{{ url_for('inventory.import_template') }}">Download a template</a></p>
+  <form method="post" enctype="multipart/form-data">
+    <input type="file" name="file" accept=".xlsx" required>
+    <button type="submit" class="btn primary">Import</button>
+  </form>
+</div>
+{% endblock %}

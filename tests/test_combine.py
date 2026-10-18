@@ -30,6 +30,16 @@ def post_bill(client, name="", phone="", **extra):
     assert res.status_code == 200, res.get_json()
 
 
+def make_walk_in(app, bill_id):
+    """Older bills can still be walk-ins (no customer record); make one the way the old app did."""
+    db = sqlite3.connect(app.config["DATABASE"])
+    db.execute("DELETE FROM customers WHERE id = (SELECT customer_id FROM bills WHERE id = ?)", (bill_id,))
+    db.execute("UPDATE bills SET customer_id = 0, customer_name = 'Walk-in customer', customer_phone = '' "
+               "WHERE id = ?", (bill_id,))
+    db.commit()
+    db.close()
+
+
 def database(app):
     db = sqlite3.connect(app.config["DATABASE"])
     db.row_factory = sqlite3.Row
@@ -162,7 +172,8 @@ def test_a_customer_without_a_phone_moves_all_their_bills_together(client, app):
 
 def test_a_walk_in_bill_is_only_linked(client, app):
     setup(client)
-    post_bill(client, "", "")
+    post_bill(client, "Temp", "")
+    make_walk_in(app, 1)
     post_bill(client, "Asha Rao", "9876543210")
     assert bill(app, 1)["customer_id"] == 0
     owner = bill(app, 2)["customer_id"]

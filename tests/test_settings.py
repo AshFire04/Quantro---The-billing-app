@@ -1,6 +1,8 @@
 import html
 import os
 
+from decimal import Decimal
+
 import pytest
 
 from app.db import get_db
@@ -407,3 +409,25 @@ def test_logo_is_private_and_needs_sign_in(client, app):
     create(client, login="other@example.com", shop="Shop B")
     assert client.get(f"/uploads/{name}").status_code == 404              # someone else's shop
     assert "No logo yet" in seen(client.get("/settings"))
+
+
+def test_an_all_items_offer_can_leave_one_category_out(offers_shop):
+    offers_shop.execute("INSERT INTO offers (shop_id, name, percentage, applies_to, exclude_category) "
+                        "VALUES (1, 'Festive', 10, 'bill', ' cushions ')")
+    offers_shop.commit()
+    items = [{"product_id": 1, "quantity": 2}, {"product_id": 2, "quantity": 1}]
+    result = price(offers_shop, items, [1])
+    # Trays 900.00 get 10% off (810.00); the cushion (299.50) is left alone: 1109.50 -> 1110
+    assert result["total"] == 111000 and result["offers_applied"] == ["Festive"]
+    # A discount typed by hand covers everything, as before.
+    assert price(offers_shop, items, [1], whole=Decimal("10"))["total"] == 108000
+
+
+def test_the_except_category_is_saved_from_the_form_for_all_items_offers_only(client, app):
+    create(client)
+    add_offer(client, name="Festive", applies_to="bill", category="", exclude_category="Curtains")
+    add_offer(client, name="Trays", applies_to="category", category="Trays", exclude_category="Curtains")
+    with app.app_context():
+        rows = get_db().execute("SELECT name, exclude_category FROM offers ORDER BY id").fetchall()
+    assert [tuple(r) for r in rows] == [("Festive", "Curtains"), ("Trays", "")]
+    assert "except “Curtains”" in seen(client.get("/settings"))

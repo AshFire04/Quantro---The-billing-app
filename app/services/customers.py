@@ -117,7 +117,7 @@ def resolve_for_bill(db, shop_id, customer_id, name, phone_text, location, custo
     * Otherwise a phone number that already exists is that customer, so there are no duplicates.
     * A new phone number makes a new customer (the name is needed).
     * No phone but a name makes a new customer without a phone. The name never finds anyone.
-    * No phone and no name is a walk-in: no customer record (id 0).
+    * No phone and no name is refused: the customer's name is always needed.
     """
     digits, error = normalize_phone(phone_text)
     if error:
@@ -140,7 +140,7 @@ def resolve_for_bill(db, shop_id, customer_id, name, phone_text, location, custo
         return create(db, shop_id, name, digits, location, customer_type), name, digits
     if name:
         return create(db, shop_id, name, "", location, customer_type), name, ""
-    return 0, WALK_IN, ""
+    raise CustomerError("Please enter the customer's name")
 
 
 def update(db, shop_id, customer_id, name, phone_text, location, customer_type):

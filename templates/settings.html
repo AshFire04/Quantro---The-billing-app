@@ -203,7 +203,7 @@
             <span class="sd-pills">
               <span class="sd-pill strong">{{ "%g" | format(o.percentage) }}% off</span>
               <span class="sd-pill">
-                {% if o.applies_to == 'category' %}Items in “{{ o.category }}”{% else %}All items{% if o.min_amount %}, when the bill reaches {{ o.min_amount | rupees }}{% endif %}{% endif %}
+                {% if o.applies_to == 'category' %}Items in “{{ o.category }}”{% else %}All items{% if o.min_amount %}, when the bill reaches {{ o.min_amount | rupees }}{% endif %}{% if o.exclude_category %}, except “{{ o.exclude_category }}”{% endif %}{% endif %}
               </span>
             </span>
           </div>
@@ -247,6 +247,10 @@
             <span>Category</span>
             <input type="text" name="category" list="categories" placeholder="e.g. Bedsheets">
             <datalist id="categories">{% for c in categories %}<option value="{{ c }}">{% endfor %}</datalist>
+          </label>
+          <label class="sd-field" id="exclude-field" hidden>
+            <span>Except category (optional)</span>
+            <input type="text" name="exclude_category" list="categories" placeholder="e.g. Curtains">
           </label>
           <label class="sd-field" id="minimum-field" hidden>
             <span>Minimum bill amount (₹, optional)</span>
@@ -355,6 +359,7 @@
     const whole = appliesTo.value === "bill";
     document.getElementById("category-field").hidden = whole;
     document.getElementById("minimum-field").hidden = !whole;
+    document.getElementById("exclude-field").hidden = !whole;
   }
   appliesTo.onchange = showOfferFields;
   showOfferFields();

@@ -1,11 +1,11 @@
-from flask import (Blueprint, abort, flash, g, redirect, render_template,
+from flask import (Blueprint, Response, abort, flash, g, redirect, render_template,
                    request, url_for)
 
 from ..auth import login_required
 from ..db import get_db
 from decimal import Decimal, InvalidOperation
 
-from ..services import choices
+from ..services import choices, inventory_import
 from ..services.money import paise_to_input, rupees_to_paise
 
 bp = Blueprint("inventory", __name__, url_prefix="/inventory")
@@ -73,9 +73,13 @@ def form_lists():
             "supplier_choices": choices.names(db, g.shop["id"], "supplier")}
 
 
-def read_form(product_id=None):
-    """Validate the product form. Returns (values, error)."""
-    f = request.form
+def read_form(product_id=None, f=None, any_list_name=False):
+    """Validate the product form (or a row of an imported sheet, passed as `f`).
+
+    Returns (values, error). `any_list_name` lets a category or supplier through even if it is
+    not in the shop's lists yet (the import adds it to them).
+    """
+    f = request.form if f is None else f
     values = {
         "code": f.get("code", "").strip() or None,
         "name": f.get("name", "").strip(),
@@ -92,7 +96,8 @@ def read_form(product_id=None):
         if old:
             kept = {"category": old["category"], "supplier": old["supplier"]}
     for field, kind in (("category", "category"), ("supplier", "supplier")):
-        if values[field] and values[field] not in choices.names(get_db(), g.shop["id"], kind) \
+        if values[field] and not any_list_name \
+                and values[field] not in choices.names(get_db(), g.shop["id"], kind) \
                 and values[field] != kept[field]:
             return values, (f"Please choose a {field} from the list. "
                             f"Add new ones in Shop Details first.")
@@ -199,3 +204,62 @@ def remove(product_id):
         db.execute("UPDATE products SET active = 0 WHERE id = ? AND shop_id = ?",
                    (product_id, g.shop["id"]))
     return redirect(url_for("inventory.index"))
+
+
+# ---- Import from an Excel sheet ----
+
+@bp.route("/import/template")
+@login_required
+def import_template():
+    return Response(inventory_import.template_bytes(),
+                    mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": "attachment; filename=products-template.xlsx"})
+
+
+@bp.route("/import", methods=("GET", "POST"))
+@login_required
+def import_products():
+    if request.method == "GET":
+        return render_template("inventory_import.html", result=None)
+    upload = request.files.get("file")
+    if upload is None or not upload.filename:
+        flash("Please choose an Excel file")
+        return redirect(url_for("inventory.import_products"))
+    try:
+        rows = inventory_import.read_products(upload.read(inventory_import.MAX_BYTES + 1))
+    except inventory_import.SheetError as e:
+        flash(str(e))
+        return redirect(url_for("inventory.import_products"))
+
+    db = get_db()
+    shop_id = g.shop["id"]
+    added, skipped, new_lists, seen_codes = 0, [], [], set()
+    for number, raw in rows:
+        row = dict(raw)
+        row["stock"] = row.get("stock") or "0"                  # blanks take the form's defaults
+        row["low_stock_level"] = row.get("low_stock_level") or "5"
+        values, error = read_form(f=row, any_list_name=True)
+        if not error and values["code"] and values["code"].lower() in seen_codes:
+            error = f"The code {values['code']} appears twice in the sheet"
+        if error:
+            skipped.append((number, error))
+            continue
+        for kind in ("category", "supplier"):
+            name = " ".join(values[kind].split())
+            if name and name.lower() not in [n.lower() for n in choices.names(db, shop_id, kind)]:
+                if choices.add(db, shop_id, kind, name) is None:
+                    new_lists.append(name)
+            values[kind] = name
+        if values["code"]:
+            seen_codes.add(values["code"].lower())
+        with db:
+            db.execute(
+                "INSERT INTO products (shop_id, code, name, category, price, "
+                "stock, low_stock_level, hsn, supplier, cost_price, gst_rate) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (shop_id, values["code"], values["name"], values["category"],
+                 values["price"], values["stock"], values["low_stock_level"],
+                 values["hsn"], values["supplier"], values["cost_price"], values["gst_rate"]))
+        added += 1
+    return render_template("inventory_import.html",
+                           result={"added": added, "skipped": skipped, "new_lists": new_lists})

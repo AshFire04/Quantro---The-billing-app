@@ -120,6 +120,7 @@ CREATE TABLE IF NOT EXISTS offers (
     applies_to TEXT NOT NULL,               -- 'category' or 'bill'
     category TEXT NOT NULL DEFAULT '',
     min_amount INTEGER NOT NULL DEFAULT 0,  -- paise; the bill must reach this (whole-bill offers)
+    exclude_category TEXT NOT NULL DEFAULT '', -- whole-bill offers: items in this category get no discount
     active INTEGER NOT NULL DEFAULT 1
 );
 CREATE TABLE IF NOT EXISTS shop_qr_codes (
@@ -323,6 +324,8 @@ def init_db():
     migrate_customers(db)
     db.execute("CREATE UNIQUE INDEX IF NOT EXISTS customers_phone_unique "
                "ON customers (shop_id, phone) WHERE phone != ''")
+    if "exclude_category" not in [row["name"] for row in db.execute("PRAGMA table_info(offers)")]:
+        db.execute("ALTER TABLE offers ADD COLUMN exclude_category TEXT NOT NULL DEFAULT ''")
     shop_columns = [row["name"] for row in db.execute("PRAGMA table_info(shops)")]
     if "monthly_target" not in shop_columns:
         db.execute("ALTER TABLE shops ADD COLUMN monthly_target INTEGER NOT NULL DEFAULT 0")

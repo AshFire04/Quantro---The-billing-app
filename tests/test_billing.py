@@ -116,7 +116,7 @@ def test_cannot_bill_another_shops_product(client):
     assert client.get("/bills/1").status_code == 404
 
 
-def test_phone_is_checked_and_a_blank_name_with_no_phone_is_a_walk_in(shop):
+def test_phone_is_checked_and_a_blank_name_is_refused(shop):
     items = [{"product_id": 1, "quantity": 1}]
     with pytest.raises(BillError, match="10-digit mobile"):
         save(shop, items, "Asha", customer_phone="12ab")
@@ -127,10 +127,10 @@ def test_phone_is_checked_and_a_blank_name_with_no_phone_is_a_walk_in(shop):
     assert stock_of(shop, "Tray") == 10
     save(shop, items, "Asha")                                       # no phone: a customer by name
     save(shop, items, "Ravi", customer_phone="+91 98765 43210")
-    save(shop, items, "")                                           # nothing: a walk-in
+    with pytest.raises(BillError, match="customer's name"):
+        save(shop, items, "")                                       # nothing: the name is needed
     rows = shop.execute("SELECT customer_name, customer_phone FROM bills ORDER BY id").fetchall()
-    assert [tuple(r) for r in rows] == [("Asha", ""), ("Ravi", "9876543210"),
-                                        ("Walk-in customer", "")]
+    assert [tuple(r) for r in rows] == [("Asha", ""), ("Ravi", "9876543210")]
 
 
 def test_order_source_and_payment_mode_are_required(shop):
