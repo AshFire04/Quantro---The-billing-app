@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quantro: App Map</title>
+<style>
+  body { font: 16px/1.55 system-ui, sans-serif; max-width: 860px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+  h1 { margin-bottom: .2rem; }
+  h2 { margin-top: 2rem; border-bottom: 2px solid #ddd; padding-bottom: .2rem; }
+  code { background: #f1f1f1; padding: 1px 5px; border-radius: 4px; font-size: .92em; }
+  .sub { color: #555; margin-top: 0; }
+  .flow { display: flex; flex-wrap: wrap; gap: .5rem; align-items: stretch; margin: 1rem 0; }
+  .box { flex: 1 1 150px; border: 2px solid #444; border-radius: 8px; padding: .6rem; background: #fafafa; font-size: .9rem; }
+  .box b { display: block; margin-bottom: .2rem; }
+  .arrow { align-self: center; font-size: 1.4rem; }
+  table { border-collapse: collapse; width: 100%; }
+  td, th { border: 1px solid #ccc; padding: .4rem .6rem; text-align: left; vertical-align: top; }
+  summary { cursor: pointer; font-weight: 600; }
+  summary:focus, a:focus { outline: 3px solid #0a58ca; }
+  .note { background: #f6f8fa; border-left: 4px solid #888; padding: .6rem .9rem; }
+</style>
+</head>
+<body>
+<main>
+<h1>Quantro: App Map</h1>
+<p class="sub">A one-page guide to where things live in the code. It is a snapshot of commit <code>a7d5c44</code> and can drift as the app changes.</p>
+
+<h2>What the app is</h2>
+<p>Quantro is a simple website for a shop owner. Making a bill updates the stock by itself, so there is one set of records instead of two. It is a Flask (Python) app with a SQLite database file, and it works on a laptop or a phone. Everything is scoped to the signed-in shop.</p>
+<ul>
+  <li><b>Billing</b>: build a bill, with discounts, offers, shipping and payments. Saving it lowers stock.</li>
+  <li><b>Inventory and Customers</b>: products with stock levels, and the customer list.</li>
+  <li><b>Past bills</b>: find, edit, cancel and download bills, and print them on A5.</li>
+  <li><b>Home, Profit and Shop Details</b>: summaries, profit figures, and each shop's own settings.</li>
+</ul>
+
+<h2>One action, followed through the code</h2>
+<p><b>Action:</b> press <i>Save</i> on a bill. <b>Result:</b> the bill appears in Past bills and the product's stock is lower in Inventory.</p>
+<div class="flow" role="img" aria-label="Save button in billing.js, then the save route in routes/billing.py, then save_bill in services/billing.py which writes to the database, then the bill page and lower stock in Inventory.">
+  <div class="box"><b>1. Browser</b><code>static/js/billing.js</code><br>sends the bill to <code>/billing/save</code></div>
+  <div class="arrow">&#8594;</div>
+  <div class="box"><b>2. Route</b><code>app/routes/billing.py</code><br><code>def save()</code> reads it</div>
+  <div class="arrow">&#8594;</div>
+  <div class="box"><b>3. Rules</b><code>app/services/billing.py</code><br><code>save_bill()</code> checks and saves</div>
+  <div class="arrow">&#8594;</div>
+  <div class="box"><b>4. Database</b><code>instance/</code> SQLite file<br>bill saved, stock lowered</div>
+  <div class="arrow">&#8594;</div>
+  <div class="box"><b>5. Result</b>bill page, and the new stock in Inventory</div>
+</div>
+
+<h2>The 3-stop route (a reference route, not toured)</h2>
+<table>
+  <tr><th>Stop</th><th>Search for</th><th>What happens</th></tr>
+  <tr><td><code>static/js/billing.js</code></td><td><code>"/billing/save"</code></td><td>The page collects items, customer, discounts and payments and posts them to the server.</td></tr>
+  <tr><td><code>app/routes/billing.py</code></td><td><code>def save()</code></td><td>Reads the posted data and calls <code>save_bill(...)</code>. A <code>BillError</code> becomes an error message on the page.</td></tr>
+  <tr><td><code>app/services/billing.py</code></td><td><code>UPDATE products SET stock = stock - ?</code></td><td>Lowers stock inside one transaction. The <code>stock &gt;= ?</code> check refuses overselling, and any failure changes nothing.</td></tr>
+</table>
+<p>The proof is in <code>tests/test_billing.py</code>: <code>test_save_lowers_stock_and_numbers_bills</code> and <code>test_overselling_is_refused_and_changes_nothing</code>.</p>
+
+<h2>To change this, start here</h2>
+<table>
+  <tr><th>I want to change&hellip;</th><th>Start in</th></tr>
+  <tr><td>Words or the menu in the top bar</td><td><code>templates/base.html</code></td></tr>
+  <tr><td>Colours and look</td><td><code>static/css/theme.css</code>, then <code>static/css/app.css</code></td></tr>
+  <tr><td>The Billing screen and its live totals</td><td><code>templates/billing.html</code> and <code>static/js/billing.js</code></td></tr>
+  <tr><td>Discount, offer or stock rules</td><td><code>price_details()</code> in <code>app/services/billing.py</code></td></tr>
+  <tr><td>GST on the printed bill</td><td><code>app/services/gst.py</code> (<code>line_gst</code>)</td></tr>
+  <tr><td>How the printed bill looks</td><td><code>static/js/bill_print.js</code> and <code>static/css/print.css</code></td></tr>
+  <tr><td>A new database column</td><td><code>SCHEMA</code> in <code>app/db.py</code> (and its upgrade step for existing shops)</td></tr>
+  <tr><td>Home page figures</td><td><code>home_figures()</code> in <code>app/services/home.py</code></td></tr>
+  <tr><td>Sample data</td><td><code>seed.py</code></td></tr>
+</table>
+
+<h2>A practice to reuse</h2>
+<div class="note">
+  <p><b>Put the rules in one place and test them directly.</b> In Quantro, the money and stock rules sit in <code>app/services/billing.py</code>, which has no web code in it. That is why <code>tests/test_billing.py</code> can call <code>save_bill()</code> straight away and prove that an oversell is refused and that a failed save changes nothing. When the screen changed many times during review, the rules stayed trustworthy, and the 277 tests caught mistakes early.</p>
+  <p>On another project, ask the agent to keep the important rules in plain functions and to write a test for the failure case first. Then any later change can be checked with one command.</p>
+</div>
+
+<h2>Run it again</h2>
+<details open>
+  <summary>Start steps</summary>
+  <ol>
+    <li>Install: <code>pip install -r requirements.txt</code></li>
+    <li>Optional sample shop: <code>python seed.py</code></li>
+    <li>Run: <code>python -m flask --app app run</code>, then open <code>http://localhost:5000</code>. Add <code>--host 0.0.0.0</code> to open it on a phone on the same Wi-Fi.</li>
+    <li>Check everything: <code>python -m pytest -q</code></li>
+  </ol>
+  <p>The README has the full steps.</p>
+</details>
+</main>
+</body>
+</html>

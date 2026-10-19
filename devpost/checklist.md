@@ -112,23 +112,23 @@ Build mode: fast
 ## Hands-on Checkpoints
 
 - [x] Early usable behavior explored — after slice 3 (the kernel: make a bill and see stock drop)
-- [ ] Final kick-the-tires exploration and feedback completed
+- [x] Final kick-the-tires exploration and feedback completed
 
 ## Final Review
 
-- [ ] Final review complete — feedback resolved and learner confirms ready to ship
+- [x] Final review complete — feedback resolved and learner confirms ready to ship
 
 ## Code Tour and App Map
 
-- [ ] Learning activity complete — guided route, focused alternative, prior practice connected, or brief recap
-- [ ] Optional edit and transfer reflection addressed — offered/declined/already covered/not applicable as appropriate
-- [ ] `devpost/app-map.html` generated from finished code, checked, and shown, including a project-grounded practice to reuse
+- [x] Learning activity complete — guided route, focused alternative, prior practice connected, or brief recap
+- [x] Optional edit and transfer reflection addressed — offered/declined/already covered/not applicable as appropriate
+- [x] `devpost/app-map.html` generated from finished code, checked, and shown, including a project-grounded practice to reuse
 
-Activity and evidence: [not started]
-Route and stops: [not started]
-Edit outcome: [not started]
-Reflection: [not started]
-Activity mode: [not started]
+Activity and evidence: Brief recap (not hands-on). The learner chose to skip the guided walk. The recap used the save-a-bill action and the tests in `tests/test_billing.py`.
+Route and stops: Reference route only, not toured: `static/js/billing.js` (`/billing/save`), `app/routes/billing.py` (`def save()`), `app/services/billing.py` (`UPDATE products SET stock`).
+Edit outcome: Not applicable. The learner skipped the walk and the optional edit.
+Reflection: Not offered. The learner skipped the walk and went straight to the map.
+Activity mode: Recap and app map (`devpost/app-map.html`, snapshot of commit a7d5c44).
 
 ## Revisions
 
