@@ -124,11 +124,11 @@ Build mode: fast
 - [x] Optional edit and transfer reflection addressed — offered/declined/already covered/not applicable as appropriate
 - [x] `devpost/app-map.html` generated from finished code, checked, and shown, including a project-grounded practice to reuse
 
-Activity and evidence: Brief recap (not hands-on). The learner chose to skip the guided walk. The recap used the save-a-bill action and the tests in `tests/test_billing.py`.
-Route and stops: Reference route only, not toured: `static/js/billing.js` (`/billing/save`), `app/routes/billing.py` (`def save()`), `app/services/billing.py` (`UPDATE products SET stock`).
-Edit outcome: Not applicable. The learner skipped the walk and the optional edit.
-Reflection: Not offered. The learner skipped the walk and went straight to the map.
-Activity mode: Recap and app map (`devpost/app-map.html`, snapshot of commit a7d5c44).
+Activity and evidence: Guided route, done hands-on. The learner followed Save bill through the code. They saw the browser stop the + button at the stock limit (`billing.js`, `plus.disabled = qty >= p.stock`). With two tabs open, they saw the server refuse a stale save with "Only 0 left of the product" (`save_bill`, tested by `test_stale_page_cannot_sell_the_last_item`).
+Route and stops: `static/js/billing.js` (`/billing/save`), `app/routes/billing.py` (`def save()`), `app/services/billing.py` (`UPDATE products SET stock`).
+Edit outcome: Offered (change the brand name in `templates/base.html`); waiting for the learner's answer.
+Reflection: Not yet offered.
+Activity mode: Guided route, with the app map (`devpost/app-map.html`, snapshot of commit a7d5c44).
 
 ## Revisions
 

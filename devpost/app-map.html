@@ -49,13 +49,14 @@
   <div class="box"><b>5. Result</b>bill page, and the new stock in Inventory</div>
 </div>
 
-<h2>The 3-stop route (a reference route, not toured)</h2>
+<h2>The 3-stop route</h2>
 <table>
   <tr><th>Stop</th><th>Search for</th><th>What happens</th></tr>
   <tr><td><code>static/js/billing.js</code></td><td><code>"/billing/save"</code></td><td>The page collects items, customer, discounts and payments and posts them to the server.</td></tr>
   <tr><td><code>app/routes/billing.py</code></td><td><code>def save()</code></td><td>Reads the posted data and calls <code>save_bill(...)</code>. A <code>BillError</code> becomes an error message on the page.</td></tr>
   <tr><td><code>app/services/billing.py</code></td><td><code>UPDATE products SET stock = stock - ?</code></td><td>Lowers stock inside one transaction. The <code>stock &gt;= ?</code> check refuses overselling, and any failure changes nothing.</td></tr>
 </table>
+<p><b>Two layers of checking.</b> The browser stops the <i>+</i> button at the stock limit (<code>plus.disabled = qty &gt;= p.stock</code> in <code>static/js/billing.js</code>). The server checks again, because a page can be out of date: <code>test_stale_page_cannot_sell_the_last_item</code> proves a stale save is refused.</p>
 <p>The proof is in <code>tests/test_billing.py</code>: <code>test_save_lowers_stock_and_numbers_bills</code> and <code>test_overselling_is_refused_and_changes_nothing</code>.</p>
 
 <h2>To change this, start here</h2>
