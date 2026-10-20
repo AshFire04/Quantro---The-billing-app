@@ -126,8 +126,8 @@ Build mode: fast
 
 Activity and evidence: Guided route, done hands-on. The learner followed Save bill through the code. They saw the browser stop the + button at the stock limit (`billing.js`, `plus.disabled = qty >= p.stock`). With two tabs open, they saw the server refuse a stale save with "Only 0 left of the product" (`save_bill`, tested by `test_stale_page_cannot_sell_the_last_item`).
 Route and stops: `static/js/billing.js` (`/billing/save`), `app/routes/billing.py` (`def save()`), `app/services/billing.py` (`UPDATE products SET stock`).
-Edit outcome: Offered (change the brand name in `templates/base.html`); waiting for the learner's answer.
-Reflection: Not yet offered.
+Edit outcome: Offered (change the brand name in `templates/base.html`); declined by the learner. No code changed.
+Reflection: Offered; not answered (the learner moved on).
 Activity mode: Guided route, with the app map (`devpost/app-map.html`, snapshot of commit a7d5c44).
 
 ## Revisions
